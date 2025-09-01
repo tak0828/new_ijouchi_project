@@ -13,9 +13,9 @@ services:
       - db
     environment:
       - DB_HOST=db
-      - DB_NAME=appdb
-      - DB_USER=appuser
-      - DB_PASSWORD=apppass
+      - DB_NAME=ijouchi_db
+      - DB_USER=frics
+      - DB_PASSWORD=frics-8080
       - TZ=Asia/Tokyo
 
   db:
@@ -23,10 +23,10 @@ services:
     container_name: mariadb
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: appdb
-      MYSQL_USER: appuser
-      MYSQL_PASSWORD: apppass
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ijouchi_db
+      MYSQL_USER: frics
+      MYSQL_PASSWORD: frics-8080
       TZ: Asia/Tokyo
     ports:
       - "3307:3306"
