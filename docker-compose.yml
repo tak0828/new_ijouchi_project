@@ -6,7 +6,8 @@ services:
     container_name: django_web
     command: python src/manage.py runserver 0.0.0.0:8000
     volumes:
-      - ./src:/app/src
+      - ./src/app:/app/src
+      - ./csv_input:/app/csv_input
     ports:
       - "8000:8000"
     depends_on:
