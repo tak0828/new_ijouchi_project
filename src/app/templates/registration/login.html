@@ -14,18 +14,18 @@
         </div>
         <h2>ログイン</h2>
 
-        {% if form.errors %}
-            <p class="error-msg">ユーザー名またはパスワードが正しくありません</p>
+        {% if message %}
+            <p class="error-msg">{{ message }}</p>
         {% endif %}
 
         <form method="post" id="loginform">
             {% csrf_token %}
             <p class="field">
-                {{ form.username }}
+                <input type="text" name="username" placeholder="ユーザー名" required>
                 <i class="fa fa-user"></i>
             </p>
             <p class="field">
-                {{ form.password }}
+                <input type="password" name="password" placeholder="パスワード" required>
                 <i class="fa fa-lock"></i>
             </p>
             <p class="submit">

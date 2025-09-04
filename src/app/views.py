@@ -14,11 +14,11 @@ def login_view(request):
         else:
             message = "ユーザー名またはパスワードが違います"
 
-    return render(request, "app/login.html", {"message": message})
+    return render(request, "registration/login.html", {"message": message})
 
 @login_required
 def home_view(request):
-    return render(request, "app/home.html")
+    return render(request, "registration/home.html")
 
 @login_required
 def logout_view(request):
