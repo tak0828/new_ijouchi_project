@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ログイン ｜ 自動化ツール（仮）</title>
+    <link rel="stylesheet" href="/static/css/fontawesome-free-5.15.4-web/css/all.css">
+    <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+    <div id="wrapper">
+        <div class="logo">
+            自動化ツール（仮）<br>
+            <span>Automatic CSV Import</span>
+        </div>
+        <h2>ログイン</h2>
+
+        {% if form.errors %}
+            <p class="error-msg">ユーザー名またはパスワードが正しくありません</p>
+        {% endif %}
+
+        <form method="post" id="loginform">
+            {% csrf_token %}
+            <p class="field">
+                {{ form.username }}
+                <i class="fa fa-user"></i>
+            </p>
+            <p class="field">
+                {{ form.password }}
+                <i class="fa fa-lock"></i>
+            </p>
+            <p class="submit">
+                <button type="submit" id="login_btn">ログイン</button>
+            </p>
+        </form>
+    </div>
+
+
+    <script src="/static/js/login.js"></script>
+</body>
+</html>

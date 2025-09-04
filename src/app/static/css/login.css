@@ -1,0 +1,98 @@
+body {
+    font-family: sans-serif;
+    background: #f8f8f8;
+    padding: 20px;
+}
+
+#wrapper {
+    max-width: 400px;
+    margin: 40px auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.logo {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.logo span {
+    font-size: 14px;
+    color: #666;
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.field {
+    margin-bottom: 15px;
+    text-align: center; /* 入力欄を中央寄せ */
+}
+
+.field input {
+    width: 50%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    display: block;       /* 中央寄せが効くように */
+    margin: 0 auto;       /* 中央に配置 */
+    text-align: left;     /* 入力文字は左寄せ */
+}
+
+.field i {
+    position: absolute;
+    right: 35px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+
+button {
+    width: 40%;
+    padding: 10px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    margin: 0 auto;
+    display: block;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #45a049;
+}
+
+.error-msg {
+    color: red;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+/* オーバーレイ全体 */
+.overlay__outer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5); /* 半透明で画面を覆う */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+/* 内側コンテナ */
+.overlay__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+

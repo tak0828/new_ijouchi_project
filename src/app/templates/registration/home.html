@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ホーム画面（テスト用）</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f8f8f8;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            font-size: 16px;
+        }
+        .logout-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 12px;
+            background-color: #3498db;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .logout-link:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ホーム画面（テスト用）</h1>
+        <p>ようこそ、{{ request.user.username }} さん！</p>
+        <p>これはログイン後に表示されるテストページです。</p>
+
+        <a href="{% url 'logout' %}" class="logout-link">ログアウト</a>
+    </div>
+</body>
+</html>

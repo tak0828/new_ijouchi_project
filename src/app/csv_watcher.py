@@ -3,7 +3,7 @@ import time
 import pandas as pd
 from datetime import datetime
 from django.core.management.base import BaseCommand
-from app.models import csv_uryo  # 自分のアプリ名に置き換え
+from app.models import csv_uryo  
 
 # Docker 内の監視フォルダ
 WATCH_FOLDER = "/app/csv_input"  
