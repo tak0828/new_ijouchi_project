@@ -4,19 +4,21 @@ services:
   web:
     build: .
     container_name: django_web
-    command: python /app/manage.py runserver 0.0.0.0:8000
+    command: >
+      python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py runserver 0.0.0.0:8000
     volumes:
       - ./src:/app
     ports:
       - "8000:8000"
+      - "5678:5678"
     depends_on:
       - db
     environment:
-      - DB_HOST=db
-      - DB_NAME=ijouchi_db
-      - DB_USER=frics
-      - DB_PASSWORD=frics-8080
-      - TZ=Asia/Tokyo
+      DB_HOST: db
+      DB_NAME: ijouchi_db
+      DB_USER: frics
+      DB_PASSWORD: frics-8080
+      TZ: Asia/Tokyo
 
   db:
     image: mariadb:10.11
@@ -32,3 +34,22 @@ services:
       - "3307:3306"
     volumes:
       - ./mariadb_data:/var/lib/mysql
+
+  csv_watcher:
+    build: .
+    container_name: csv_watcher
+    command: >
+      python -m debugpy --listen 0.0.0.0:5679 --wait-for-client /app/manage.py watch_csv --interval 10
+    volumes:
+      - ./src:/app
+      - ./csv_input:/app/csv_input
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_NAME: ijouchi_db
+      DB_USER: frics
+      DB_PASSWORD: frics-8080
+      TZ: Asia/Tokyo
+    ports:
+      - "5679:5679"

@@ -76,3 +76,41 @@ class csv_uryo(models.Model):
     def __str__(self):
         return f"{self.station_name} - {self.observation_datetime}"
 
+class WatchStatus(models.Model):
+    """CSV監視の状態を管理するモデル"""
+    is_watching = models.BooleanField(default=False, verbose_name="監視中")
+    last_checked = models.DateTimeField(auto_now=True, verbose_name="最終チェック時刻")
+    processed_files_count = models.IntegerField(default=0, verbose_name="処理済みファイル数")
+    error_count = models.IntegerField(default=0, verbose_name="エラー数")
+    
+    class Meta:
+        verbose_name = "監視状態"
+        verbose_name_plural = "監視状態"
+    
+    def __str__(self):
+        status = "監視中" if self.is_watching else "停止中"
+        return f"CSV監視 - {status}"
+
+class ProcessedFile(models.Model):
+    """処理済みCSVファイルの情報を管理するモデル"""
+    file_name = models.CharField(max_length=255, verbose_name="ファイル名", unique=True)
+    file_path = models.CharField(max_length=500, verbose_name="ファイルパス")
+    file_size = models.BigIntegerField(verbose_name="ファイルサイズ")
+    file_hash = models.CharField(max_length=64, verbose_name="ファイルハッシュ")
+    processed_at = models.DateTimeField(auto_now_add=True, verbose_name="処理日時")
+    records_count = models.IntegerField(default=0, verbose_name="レコード数")
+    status = models.CharField(max_length=20, choices=[
+        ('success', '成功'),
+        ('error', 'エラー'),
+        ('partial', '部分成功'),
+    ], default='success', verbose_name="処理状態")
+    error_message = models.TextField(blank=True, null=True, verbose_name="エラーメッセージ")
+    
+    class Meta:
+        verbose_name = "処理済みファイル"
+        verbose_name_plural = "処理済みファイル"
+        ordering = ['-processed_at']
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.processed_at.strftime('%Y-%m-%d %H:%M')}"
+

@@ -1,0 +1,47 @@
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3><i class="fas fa-cog"></i> メニュー</h3>
+        <button class="sidebar-close" id="sidebarClose">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    
+    <ul class="sidebar-menu">
+        <li>
+            <a href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}class="active"{% endif %}>
+                <i class="fas fa-home"></i>
+                ホーム
+            </a>
+        </li>
+        <li>
+            <a href="#" onclick="showComingSoon('データ一覧')">
+                <i class="fas fa-table"></i>
+                データ一覧
+            </a>
+        </li>
+        <li>
+            <a href="#" onclick="showComingSoon('統計レポート')">
+                <i class="fas fa-chart-bar"></i>
+                統計レポート
+            </a>
+        </li>
+        <li>
+            <a href="#" onclick="showComingSoon('設定')">
+                <i class="fas fa-cog"></i>
+                設定
+            </a>
+        </li>
+        <li>
+            <a href="#" onclick="showComingSoon('ヘルプ')">
+                <i class="fas fa-question-circle"></i>
+                ヘルプ
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'logout' %}">
+                <i class="fas fa-sign-out-alt"></i>
+                ログアウト
+            </a>
+        </li>
+    </ul>
+</div>

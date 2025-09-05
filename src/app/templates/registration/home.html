@@ -1,49 +1,45 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>ホーム画面（テスト用）</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            background-color: #f8f8f8;
-            padding: 20px;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #fff;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-        }
-        p {
-            font-size: 16px;
-        }
-        .logout-link {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 8px 12px;
-            background-color: #3498db;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-        .logout-link:hover {
-            background-color: #2980b9;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>ホーム画面（テスト用）</h1>
-        <p>ようこそ、{{ request.user.username }} さん！</p>
-        <p>これはログイン後に表示されるテストページです。</p>
+{% extends 'base.html' %}
 
-        <a href="{% url 'logout' %}" class="logout-link">ログアウト</a>
+{% block title %}CSV監視画面{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/home.css">
+{% endblock %}
+
+{% block content %}
+<h1>CSV監視画面</h1>
+<div class="welcome">
+    <p>ようこそ、{{ request.user.username }} さん！</p>
+    <p>CSVファイルの監視を開始・停止できます。</p>
+</div>
+
+<div class="watch-control">
+    <h2>CSV監視制御</h2>
+    
+    <div class="message" id="message"></div>
+    
+    <div class="status-display">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span id="statusText">監視状態を確認中...</span>
     </div>
-</body>
-</html>
+    
+    <div class="button-group">
+        <button class="btn btn-start" id="startBtn" onclick="toggleWatch('start')">
+            監視開始
+        </button>
+        <button class="btn btn-stop" id="stopBtn" onclick="toggleWatch('stop')">
+            監視停止
+        </button>
+    </div>
+    
+    <div class="status-info" id="statusInfo">
+        <p>最終チェック: <span id="lastChecked">-</span></p>
+        <p>処理済みファイル数: <span id="processedCount">0</span></p>
+        <p>エラー数: <span id="errorCount">0</span></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/home.js"></script>
+{% endblock %}

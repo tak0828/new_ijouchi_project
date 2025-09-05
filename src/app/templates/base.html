@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}CSV監視システム{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/fontawesome-free-5.15.4-web/css/all.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- サイドバートグルボタン -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- サイドバーオーバーレイ -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- 右サイドバー -->
+    {% include 'partials/sidebar.html' %}
+
+    <!-- メインコンテンツ -->
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- 共通JavaScript -->
+    <script src="/static/js/base.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

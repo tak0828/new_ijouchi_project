@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}データ一覧{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/data_list.css">
+{% endblock %}
+
+{% block content %}
+<h1>データ一覧</h1>
+<div class="welcome">
+    <p>CSVから取り込まれたデータの一覧を表示します。</p>
+</div>
+
+<div class="data-controls">
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="観測所名で検索...">
+        <button class="btn btn-search" onclick="searchData()">
+            <i class="fas fa-search"></i> 検索
+        </button>
+    </div>
+    
+    <div class="filter-options">
+        <select id="regionFilter">
+            <option value="">全ての地方</option>
+            <option value="関東">関東</option>
+            <option value="関西">関西</option>
+            <option value="中部">中部</option>
+        </select>
+        
+        <select id="dateFilter">
+            <option value="">全ての日付</option>
+            <option value="today">今日</option>
+            <option value="week">今週</option>
+            <option value="month">今月</option>
+        </select>
+    </div>
+</div>
+
+<div class="data-table">
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th>観測日時</th>
+                <th>観測所名</th>
+                <th>地方名</th>
+                <th>観測値</th>
+                <th>状態</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="5" class="no-data">データがありません</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination">
+    <button class="btn btn-prev" disabled>前へ</button>
+    <span class="page-info">1 / 1</span>
+    <button class="btn btn-next" disabled>次へ</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/data_list.js"></script>
+{% endblock %}
