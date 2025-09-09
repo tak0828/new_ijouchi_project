@@ -8,6 +8,7 @@ services:
       python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py runserver 0.0.0.0:8000
     volumes:
       - ./src:/app
+      - ./csv_input:/app/csv_input
     ports:
       - "8000:8000"
       - "5678:5678"
@@ -29,27 +30,14 @@ services:
       MYSQL_DATABASE: ijouchi_db
       MYSQL_USER: frics
       MYSQL_PASSWORD: frics-8080
-      TZ: Asia/Tokyo
+      MYSQL_ROOT_HOST: '%'
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+      --skip-name-resolve
+      --bind-address=0.0.0.0
     ports:
-      - "3307:3306"
+      - "3308:3306"
     volumes:
       - ./mariadb_data:/var/lib/mysql
-
-  csv_watcher:
-    build: .
-    container_name: csv_watcher
-    command: >
-      python -m debugpy --listen 0.0.0.0:5679 --wait-for-client /app/manage.py watch_csv --interval 10
-    volumes:
-      - ./src:/app
-      - ./csv_input:/app/csv_input
-    depends_on:
-      - db
-    environment:
-      DB_HOST: db
-      DB_NAME: ijouchi_db
-      DB_USER: frics
-      DB_PASSWORD: frics-8080
-      TZ: Asia/Tokyo
-    ports:
-      - "5679:5679"
