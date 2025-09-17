@@ -1,80 +1,86 @@
 from django.db import models
+from decimal import Decimal
+from django.db.backends.base.base import BaseDatabaseWrapper
 
-class CsvUryo(models.Model):
-    
-    observation_datetime = models.DateTimeField(verbose_name="観測日時")
-    item_type = models.CharField(max_length=50, verbose_name="項目種別")
-    unified_id = models.CharField(max_length=50, verbose_name="統一ID")
-    water_id = models.CharField(max_length=50, verbose_name="水水ID")
-    station_name = models.CharField(max_length=100, verbose_name="観測所名")
-    region_name = models.CharField(max_length=50, verbose_name="地方名")
-    water_system_name = models.CharField(max_length=50, verbose_name="水系名")
-    river_name = models.CharField(max_length=50, verbose_name="河川名")
-    manager = models.CharField(max_length=50, verbose_name="管理者")
-    management_type = models.CharField(max_length=50, verbose_name="管理区分")
-    observation_value = models.FloatField(verbose_name="観測値", null=True, blank=True)
 
-    # 近傍観測所1
-    neighbor1_id = models.CharField(max_length=50, verbose_name="近傍観測所1のID", null=True, blank=True)
-    neighbor1_name = models.CharField(max_length=100, verbose_name="近傍観測所1の名称", null=True, blank=True)
-    neighbor1_value = models.FloatField(verbose_name="近傍観測所1の観測値", null=True, blank=True)
 
-    # 近傍観測所2
-    neighbor2_id = models.CharField(max_length=50, verbose_name="近傍観測所2のID", null=True, blank=True)
-    neighbor2_name = models.CharField(max_length=100, verbose_name="近傍観測所2の名称", null=True, blank=True)
-    neighbor2_value = models.FloatField(verbose_name="近傍観測所2の観測値", null=True, blank=True)
 
-    # 近傍観測所3
-    neighbor3_id = models.CharField(max_length=50, verbose_name="近傍観測所3のID", null=True, blank=True)
-    neighbor3_name = models.CharField(max_length=100, verbose_name="近傍観測所3の名称", null=True, blank=True)
-    neighbor3_value = models.FloatField(verbose_name="近傍観測所3の観測値", null=True, blank=True)
 
-    # 近傍観測所4
-    neighbor4_id = models.CharField(max_length=50, verbose_name="近傍観測所4のID", null=True, blank=True)
-    neighbor4_name = models.CharField(max_length=100, verbose_name="近傍観測所4の名称", null=True, blank=True)
-    neighbor4_value = models.FloatField(verbose_name="近傍観測所4の観測値", null=True, blank=True)
+class CustomTextField(models.TextField):
+    """ "デフォルトは longtext になるため、text に変更するためのTextField"""
 
-    # 近傍観測所5
-    neighbor5_id = models.CharField(max_length=50, verbose_name="近傍観測所5のID", null=True, blank=True)
-    neighbor5_name = models.CharField(max_length=100, verbose_name="近傍観測所5の名称", null=True, blank=True)
-    neighbor5_value = models.FloatField(verbose_name="近傍観測所5の観測値", null=True, blank=True)
+    def db_type(self, connection: BaseDatabaseWrapper):
+        if connection.settings_dict["ENGINE"] == "django.db.backends.mysql":
+            return "text"
+        else:
+            return super(CustomTextField, self).db_type(connection=connection)
 
-    # 近傍観測所6
-    neighbor6_id = models.CharField(max_length=50, verbose_name="近傍観測所6のID", null=True, blank=True)
-    neighbor6_name = models.CharField(max_length=100, verbose_name="近傍観測所6の名称", null=True, blank=True)
-    neighbor6_value = models.FloatField(verbose_name="近傍観測所6の観測値", null=True, blank=True)
 
-    # 近傍観測所7
-    neighbor7_id = models.CharField(max_length=50, verbose_name="近傍観測所7のID", null=True, blank=True)
-    neighbor7_name = models.CharField(max_length=100, verbose_name="近傍観測所7の名称", null=True, blank=True)
-    neighbor7_value = models.FloatField(verbose_name="近傍観測所7の観測値", null=True, blank=True)
+# 193サーバーから取得した調査書更新用のテーブル
+class MS_Kansokujo_Update(models.Model):
 
-    # 近傍観測所8
-    neighbor8_id = models.CharField(max_length=50, verbose_name="近傍観測所8のID", null=True, blank=True)
-    neighbor8_name = models.CharField(max_length=100, verbose_name="近傍観測所8の名称", null=True, blank=True)
-    neighbor8_value = models.FloatField(verbose_name="近傍観測所8の観測値", null=True, blank=True)
 
-    # 近傍観測所9
-    neighbor9_id = models.CharField(max_length=50, verbose_name="近傍観測所9のID", null=True, blank=True)
-    neighbor9_name = models.CharField(max_length=100, verbose_name="近傍観測所9の名称", null=True, blank=True)
-    neighbor9_value = models.FloatField(verbose_name="近傍観測所9の観測値", null=True, blank=True)
+    KansokujoCD = models.CharField('観測所コード', max_length=20, primary_key=True)
+    ShubetsuCD = models.CharField('観測所種別コード', max_length=20, null=True, blank=True)
+    KansokujoCD2 = models.CharField('観測所コード(川防用)', max_length=20)
+    KansokujoName = CustomTextField('観測所名')
+    KansokujoYomi = CustomTextField('観測所読み', null=True, blank=True)
+    Shozaichi = CustomTextField('所在地', null=True, blank=True)
+    CenterCD = models.CharField('センター(運用課)コード', max_length=20, null=True, blank=True)
+    ShozokuCD = models.CharField('所属区分コード', max_length=20, null=True, blank=True)
+    KanriCD = models.CharField('管理区分コード', max_length=20, null=True, blank=True)
+    KenCD = models.CharField('都道府県コード', max_length=10, null=True, blank=True)
+    JimushoCD = models.CharField('事務所コード', max_length=20, null=True, blank=True)
+    JimushoCD2 = models.CharField('事務所コード2', max_length=20, null=True, blank=True)
+    SuikeiCD = models.CharField('水系コード(入力用)', max_length=20, null=True, blank=True)
+    SuikeiCD2 = models.CharField('水系コード(出力用)', max_length=20, null=True, blank=True)
+    KasenCD = models.CharField('河川コード(入力用)', max_length=20, null=True, blank=True)
+    KasenCD2 = models.CharField('河川コード(出力用)', max_length=20, null=True, blank=True)
+    Hyokou = CustomTextField('標高', null=True, blank=True)
+    Ido = CustomTextField('緯度', null=True, blank=True)
+    Keido = CustomTextField('経度', null=True, blank=True)
+    KijunFLG = models.BooleanField('基準観測所フラグ', default=False)
+    TenyuryokuFLG = models.BooleanField('手入力フラグ', default=False)
+    StartYMD = models.DateField('観測開始日', null=True, blank=True)
+    EndYMD = models.DateField('観測終了日', null=True, blank=True)
+    HyoujiNo = models.IntegerField('画面表示順', null=True, blank=True)
+    ShutsuryokuNo = models.IntegerField('帳票出力順', null=True, blank=True)
+    K_GroupCD = models.CharField('一斉欠測グループコード', max_length=20, null=True, blank=True)
+    S_GroupCD = models.CharField('出力観測所グループコード', max_length=20, null=True, blank=True)
+    SuiiShuuchiFLG = models.BooleanField('水位周知フラグ', default=False)
+    KansokuKikiCD = models.CharField('観測機器コード', max_length=20, null=True, blank=True)
+    KansokuKikiYMD = models.CharField('観測機器更新日', max_length=20, null=True, blank=True)
+    CreateTime = models.DateTimeField('レコード作成日時', auto_now_add=True)
+    UpdateTime = models.DateTimeField('レコード更新日時', auto_now=True)
+    DelFlg = models.BooleanField('削除フラグ', default=False)
+    DblFlg = models.BooleanField('重複フラグ', default=False)
+    K_Time = models.CharField('欠測継続時間', max_length=20, null=True, blank=True)
+    Kijunchi = models.CharField('基準値', max_length=20, null=True, blank=True)
+    Jougenchi = models.CharField('上限値', max_length=20, null=True, blank=True)
+    Kagenchi = models.CharField('下限値', max_length=20, null=True, blank=True)
+    Hendouryou = models.DecimalField('変動量', max_digits=6, decimal_places=2, null=True, blank=True)
+    TempFile01 = models.ImageField('添付ファイル1', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile02 = models.ImageField('添付ファイル2', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile03 = models.ImageField('添付ファイル3', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile04 = models.ImageField('添付ファイル4', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile05 = models.ImageField('添付ファイル5', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile06 = models.ImageField('添付ファイル6', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile07 = models.ImageField('添付ファイル7', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile08 = models.ImageField('添付ファイル8', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile09 = models.ImageField('添付ファイル9', upload_to='kansokujo_photos/', null=True, blank=True)
+    TempFile10 = models.ImageField('添付ファイル10', upload_to='kansokujo_photos/', null=True, blank=True)
 
-    # 近傍観測所10
-    neighbor10_id = models.CharField(max_length=50, verbose_name="近傍観測所10のID", null=True, blank=True)
-    neighbor10_name = models.CharField(max_length=100, verbose_name="近傍観測所10の名称", null=True, blank=True)
-    neighbor10_value = models.FloatField(verbose_name="近傍観測所10の観測値", null=True, blank=True)
+    class Meta:
+        verbose_name = verbose_name_plural = "観測所更新マスタ(MS_Kansokujo_Update)"
+        db_table = "MS_Kansokujo_Update"
+        ordering = ["KansokujoCD"]
 
-    # その他の情報
-    idw_estimated_value = models.FloatField(verbose_name="IDW推定値", null=True, blank=True)
-    mesh_code = models.CharField(max_length=20, verbose_name="メッシュコード", null=True, blank=True)
-    radar_rainfall = models.FloatField(verbose_name="レーダ雨量", null=True, blank=True)
-    idw_anomaly = models.FloatField(verbose_name="IDW異常", null=True, blank=True)
-    upper_limit = models.FloatField(verbose_name="上限値", null=True, blank=True)
-    missing_or_unreceived = models.BooleanField(verbose_name="欠測・未受信", default=False)
-    consecutive_abnormal_values = models.IntegerField(verbose_name="連続する異常値", null=True, blank=True)
+
 
     def __str__(self):
-        return f"{self.station_name} - {self.observation_datetime}"
+        return f"{self.KansokujoCD}: {self.KansokujoName}"
+
+
 
 class WatchStatus(models.Model):
     """CSV監視の状態を管理するモデル"""

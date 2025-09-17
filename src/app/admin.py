@@ -1,13 +1,6 @@
 from django.contrib import admin
-from .models import CsvUryo, WatchStatus, ProcessedFile
+from .models import WatchStatus, ProcessedFile
 
-@admin.register(CsvUryo)
-class CsvUryoAdmin(admin.ModelAdmin):
-    list_display = ['observation_datetime', 'station_name', 'region_name', 'observation_value', 'item_type']
-    list_filter = ['region_name', 'item_type', 'observation_datetime']
-    search_fields = ['station_name', 'unified_id']
-    date_hierarchy = 'observation_datetime'
-    ordering = ['-observation_datetime']
 
 @admin.register(WatchStatus)
 class WatchStatusAdmin(admin.ModelAdmin):
