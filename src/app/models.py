@@ -1,6 +1,6 @@
 from django.db import models
 
-class csv_uryo(models.Model):
+class CsvUryo(models.Model):
     
     observation_datetime = models.DateTimeField(verbose_name="観測日時")
     item_type = models.CharField(max_length=50, verbose_name="項目種別")

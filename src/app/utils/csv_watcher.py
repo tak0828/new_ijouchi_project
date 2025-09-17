@@ -6,7 +6,7 @@ import csv
 import hashlib
 from django.conf import settings
 from django.utils import timezone
-from app.models import WatchStatus, csv_uryo, ProcessedFile
+from app.models import WatchStatus, CsvUryo, ProcessedFile
 
 def process_csv_file(filepath):
     """CSVを読み込んで DB に保存"""
@@ -15,19 +15,19 @@ def process_csv_file(filepath):
         with open(filepath, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # csv_uryo のフィールドに合わせて保存
-                csv_uryo.objects.create(
+                # CsvUryo のフィールドに合わせて保存
+                CsvUryo.objects.create(
                     observation_datetime=row.get("observation_datetime"),
-                    item_type=row.get("item_type"),
-                    unified_id=row.get("unified_id"),
-                    water_id=row.get("water_id"),
-                    station_name=row.get("station_name"),
-                    region_name=row.get("region_name"),
-                    water_system_name=row.get("water_system_name"),
-                    river_name=row.get("river_name"),
-                    manager=row.get("manager"),
-                    management_type=row.get("management_type"),
-                    observation_value=row.get("observation_value") or None,
+                    # item_type=row.get("item_type"),
+                    # unified_id=row.get("unified_id"),
+                    # water_id=row.get("water_id"),
+                    # station_name=row.get("station_name"),
+                    # region_name=row.get("region_name"),
+                    # water_system_name=row.get("water_system_name"),
+                    # river_name=row.get("river_name"),
+                    # manager=row.get("manager"),
+                    # management_type=row.get("management_type"),
+                    # observation_value=row.get("observation_value") or None,
                     # 近傍観測所やその他の値も同様に
                     # neighbor1_id=row.get("neighbor1_id") ...
                 )

@@ -6,6 +6,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from app.models import WatchStatus
 import json
+import os
+import csv
+from django.conf import settings
+
 
 def login_view(request):
     message = ""
@@ -51,15 +55,44 @@ def toggle_watch(request):
         watch_status, created = WatchStatus.objects.get_or_create(
             defaults={'is_watching': False}
         )
-        
         if action == 'start':
             watch_status.is_watching = True
             watch_status.save()
+
+            # CSVファイルのパス（例としてプロジェクトの雨量_注意_新潟デモ.csvを使用）
+            csv_file_path = os.path.join(settings.BASE_DIR, "csv", "雨量_注意_新潟デモ.csv")
+
+            # CSV読み込み処理
+            csv_data = []
+            try:
+                with open(csv_file_path, encoding="cp932") as f:  # Windows製CSVはShift_JIS(cp932)
+                    reader = csv.DictReader(f)  # 1行目をヘッダとして扱う(例：統一CD等)
+                    KanoskujoCD2_list = []  # 統一IDを格納するリスト
+                    for row in reader:
+                        # 統一IDがある行だけ抽出
+                        KansokujoCD2_id = row.get('統一ID')
+                        if KansokujoCD2_id:  # 空でなければ追加
+                            KanoskujoCD2_list.append(KansokujoCD2_id)
+
+                    # # 全データを保持したい場合は reader をリスト化
+                    # csv_data = list(csv.DictReader(open(csv_file_path, encoding="cp932")))
+
+                print(KanoskujoCD2_list)  # デバッグ用にコンソール出力
+
+            except FileNotFoundError:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'CSVファイルが見つかりません: {csv_file_path}'
+                })
+
             return JsonResponse({
                 'success': True,
                 'message': 'CSV監視を開始しました',
-                'is_watching': True
+                'is_watching': True,
+                'csv_preview': csv_data[:5],  # 最初の5行だけ返す
             })
+        
+
         elif action == 'stop':
             watch_status.is_watching = False
             watch_status.save()

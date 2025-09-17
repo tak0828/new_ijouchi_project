@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}CSV監視画面{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/home.css">
+{% endblock %}
+
+{% block content %}
+<h1>CSV監視画面</h1>
+<div class="welcome">
+    <p>ようこそ、{{ request.user.username }} さん！</p>
+    <p>CSVファイルの監視を開始・停止できます。</p>
+</div>
+
+<div class="watch-control">
+    <h2>CSV監視制御</h2>
+    
+    <div class="message" id="message"></div>
+    
+    <div class="status-display">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span id="statusText">監視状態を確認中...</span>
+    </div>
+    
+    <div class="button-group">
+        <button class="btn btn-start" id="startBtn" onclick="toggleWatch('start')">
+            監視開始
+        </button>
+        <button class="btn btn-stop" id="stopBtn" onclick="toggleWatch('stop')">
+            監視停止
+        </button>
+    </div>
+    
+    <div class="status-info" id="statusInfo">
+        <p>最終チェック: <span id="lastChecked">-</span></p>
+        <p>処理済みファイル数: <span id="processedCount">0</span></p>
+        <p>エラー数: <span id="errorCount">0</span></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/home.js"></script>
+{% endblock %}
