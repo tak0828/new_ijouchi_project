@@ -90,7 +90,7 @@ def toggle_watch(request):
                     print("CSVに有効な行がありません")
                     return JsonResponse({"status": "no_data"})
 
-                # MariaDB接続
+                # MariaDB接続（今回は193サーバーのIjouchiDBV6を使用）
                 conn = pymysql.connect(
                     host='192.168.99.193',
                     user='frics',
@@ -101,7 +101,7 @@ def toggle_watch(request):
 
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-                # 統一IDから MS_Kansokujo を取得
+                # 統一IDから MS_KansokujoからKansokujoCD を取得
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
                 sql = f"SELECT KansokujoCD, ShubetsuCD, KansokujoCD2 FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
@@ -115,8 +115,8 @@ def toggle_watch(request):
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
                 MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"]) for r in MS_Kansokujo_results}
 
-                # 各CSV行ごとに DS_ChousaMeisai 件数取得
-                result_counts = []
+                # 各CSV行ごとに DS_ChousaMeisai 件数取得(2年前～観測日時) 
+                DS_ChousaKihon_counts = []
                 for r in csv_rows:
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
@@ -124,7 +124,7 @@ def toggle_watch(request):
                     KansokujoCD, ShubetsuCD = MS_Kansokujo_dict[cd2]
                     
                     sql2 = """
-                        SELECT COUNT(*) as cnt
+                        SELECT DateNo
                         FROM DS_ChousaMeisai
                         WHERE KansokujoCD = %s
                         AND ShubetsuCD = %s
@@ -132,84 +132,49 @@ def toggle_watch(request):
                     """
                     params = [KansokujoCD, ShubetsuCD, r["2年前日時"].strftime("%Y/%m/%d"), r["観測日時"].strftime("%Y/%m/%d")]
                     cursor.execute(sql2, params)
-                    count = cursor.fetchone()["cnt"]
-                    result_counts.append({
+                    DateNo_results = cursor.fetchall()
+                    DateNo_list = [DateNo_row["DateNo"] for DateNo_row in DateNo_results]
+                    # 件数取得（デバック用）
+                    print(f"統一ID {cd2} の DateNo 件数: {len(DateNo_results)}")
+
+
+                    # 取得した DateNo で DS_ChousaKihonレコードを取得
+                    DS_ChousaKihon_results = []
+                    for DateNo in DateNo_list:
+                        sql3 = """
+                            SELECT k.*, m.HasseiJoukyouName
+                            FROM DS_ChousaKihon k
+                            LEFT JOIN MS_HasseiJoukyou m
+                            ON k.HasseiJoukyouCD = m.HasseiJoukyouCD
+                            WHERE k.DateNo = %s
+                            AND m.HasseiJoukyouName = %s
+                        """
+                        cursor.execute(sql3, [DateNo, "IDW(注意フラグ)"])
+                        DS_ChousaKihon_rows = cursor.fetchall()
+                        if DS_ChousaKihon_rows:
+                            DS_ChousaKihon_results.extend(DS_ChousaKihon_rows)
+
+                    # デバッグ出力
+                    print(f"統一ID {cd2} の DS_ChousaKihon 件数 (IDW（注意フラグ): {len(DS_ChousaKihon_results)}")
+                    for row in DS_ChousaKihon_results[:5]:  # 多すぎると見づらいので最初の5件
+                        print(f"DateNo={row['DateNo']} | HasseiJoukyouCD={row['HasseiJoukyouCD']} | HasseiJoukyouName={row['HasseiJoukyouName']}")
+
+
+
+                    DS_ChousaKihon_counts.append({
                         "統一ID": cd2,
-                        "KansokujoCD": KansokujoCD,
-                        "ShubetsuCD": ShubetsuCD,
                         "観測日時": r["観測日時"].strftime("%Y/%m/%d %H:%M"),
                         "2年前日時": r["2年前日時"].strftime("%Y/%m/%d"),
-                        "件数": count
                     })
 
                 conn.close()
                 
                 # デバッグ出力
-                for rec in result_counts:
+                for rec in DS_ChousaKihon_counts:
                     print(rec)
 
-                return JsonResponse({"status": "started", "counts": result_counts})
+                return JsonResponse({"status": "started", "counts": DS_ChousaKihon_counts})
 
-                # # Docker内DB(MS_Kanoskujo_Updateに保存)
-                # with transaction.atomic():
-                #     for row in KansokujoCD2_results:
-                #         try:
-                #             MS_Kansokujo_Update.objects.update_or_create(
-                #                 KansokujoCD=row['KansokujoCD'],
-                #                 defaults={
-                #                     # foreign_keyを使わずに直接保存
-                #                     'ShubetsuCD': row.get('ShubetsuCD'),
-                #                     'KansokujoCD2': row.get('KansokujoCD2'),
-                #                     'KansokujoName': row.get('KansokujoName'),
-                #                     'KansokujoYomi': row.get('KansokujoYomi'),
-                #                     'Shozaichi': row.get('Shozaichi'),
-                #                     'CenterCD': row.get('CenterCD'),
-                #                     'ShozokuCD': row.get('ShozokuCD'),
-                #                     'KanriCD': row.get('KanriCD'),
-                #                     'KenCD': row.get('KenCD'),
-                #                     'JimushoCD': row.get('JimushoCD'),
-                #                     'JimushoCD2': row.get('JimushoCD2'),
-                #                     'SuikeiCD': row.get('SuikeiCD'),
-                #                     'SuikeiCD2': row.get('SuikeiCD2'),
-                #                     'KasenCD': row.get('KasenCD'),
-                #                     'KasenCD2': row.get('KasenCD2'),
-                #                     'Hyokou': row.get('Hyokou'),
-                #                     'Ido': row.get('Ido'),
-                #                     'Keido': row.get('Keido'),
-                #                     'KijunFLG': row.get('KijunFLG', False),
-                #                     'TenyuryokuFLG': row.get('TenyuryokuFLG', False),
-                #                     'StartYMD': row.get('StartYMD'),
-                #                     'EndYMD': row.get('EndYMD'),
-                #                     'HyoujiNo': row.get('HyoujiNo'),
-                #                     'ShutsuryokuNo': row.get('ShutsuryokuNo'),
-                #                     'K_GroupCD': row.get('K_GroupCD'),
-                #                     'S_GroupCD': row.get('S_GroupCD'),
-                #                     'SuiiShuuchiFLG': row.get('SuiiShuuchiFLG', False),
-                #                     'KansokuKikiCD': row.get('KansokuKikiCD'),
-                #                     'KansokuKikiYMD': row.get('KansokuKikiYMD'),
-                #                     'DelFlg': row.get('DelFlg', False),
-                #                     'DblFlg': row.get('DblFlg', False),
-                #                     'K_Time': row.get('K_Time'),
-                #                     'Kijunchi': row.get('Kijunchi'),
-                #                     'Jougenchi': row.get('Jougenchi'),
-                #                     'Kagenchi': row.get('Kagenchi'),
-                #                     'Hendouryou': row.get('Hendouryou'),
-                #                     'TempFile01': None,
-                #                     'TempFile02': None,
-                #                     'TempFile03': None,
-                #                     'TempFile04': None,
-                #                     'TempFile05': None,
-                #                     'TempFile06': None,
-                #                     'TempFile07': None,
-                #                     'TempFile08': None,
-                #                     'TempFile09': None,
-                #                     'TempFile10': None,
-                #                 }
-                #             )
-
-                #             print(f"レコード {row['KansokujoCD']} を保存または更新しました")
-                #         except Exception as e:
-                #             print(f"レコード {row['KansokujoCD']} の保存でエラー:", e)
                             
             except FileNotFoundError:
                 return JsonResponse({
