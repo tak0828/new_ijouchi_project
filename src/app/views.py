@@ -182,14 +182,25 @@ def toggle_watch(request):
 
                         print(f"統一ID {cd2} の最新 DS_ChousaKihon.DateNo (HasseiJoukyouCD=845108): {Latest_row['DateNo'] if Latest_row else None}")
 
+                        # DS_ChousaIjouchiSuiteiGenin を DateNoとCenterCD で推定原因、原因発生個所、繰り返し発生の有無取得
+                        if Latest_row:
+                            sql4 = """
+                                SELECT CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
+                                FROM DS_ChousaIjouchiSuiteiGenin
+                                WHERE DateNo = %s
+                                AND CenterCD = %s
+                                """
+                            cursor.execute(sql4, [Latest_row["DateNo"], Latest_row["CenterCD"]])
+                            DS_ChousaIjouchiSuiteiGenin_rows = cursor.fetchall()
 
+                            print(f"DS_ChousaIjouchiSuiteiGenin (DateNo={Latest_row['DateNo']}, CenterCD={Latest_row['CenterCD']}) 件数: {len(DS_ChousaIjouchiSuiteiGenin_rows)}")
+                            # for Suitei_row in DS_ChousaIjouchiSuiteiGenin_rows:
+                            #     print(
+                            #         f"推定原因区分={Suitei_row['CISG_SuiteiGeninKbn']}, "
+                            #         f"原因発生個所区分={Suitei_row['CISG_GeninKashoKbn']}, "
+                            #         f"繰り返し発生有無={Suitei_row['CISG_HasseiUM']}"
+                            #     )
 
-
-                        DS_ChousaKihon_counts.append({
-                            "統一ID": cd2,
-                            "観測日時": r["観測日時"].strftime("%Y/%m/%d %H:%M"),
-                            "1年前日時": r["1年前日時"].strftime("%Y/%m/%d"),
-                        })
 
                 conn.close()
                 
