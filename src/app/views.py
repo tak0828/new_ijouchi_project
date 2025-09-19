@@ -164,7 +164,7 @@ def toggle_watch(request):
                 # 統一IDから MS_KansokujoからKansokujoCD を取得
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
-                sql = f"SELECT KansokujoCD, ShubetsuCD, KansokujoCD2 FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
+                sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2 FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
                 cursor.execute(sql, KansokujoCD2_list)
                 MS_Kansokujo_results = cursor.fetchall()
                 if not MS_Kansokujo_results:
@@ -173,7 +173,7 @@ def toggle_watch(request):
                     return JsonResponse({"status": "no_ms_record"})
 
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
-                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"]) for r in MS_Kansokujo_results}
+                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"]) for r in MS_Kansokujo_results}
 
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
@@ -182,7 +182,7 @@ def toggle_watch(request):
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
                         continue
-                    KansokujoCD, ShubetsuCD = MS_Kansokujo_dict[cd2]
+                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD = MS_Kansokujo_dict[cd2]
                     
                     sql2 = """
                         SELECT DateNo
@@ -274,16 +274,31 @@ def toggle_watch(request):
                                 "DS_ChousaKihon": {
                                     "columns": ["DateNo", "CenterCD", "HasseiJoukyouCD",
                                                 "KakuninDate", "KakuninTime",
-                                                "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou"],
+                                                "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
+                                                "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
+                                                "Shubetsu09","HakkenHouhouCD", "KKShubetsuCD"],
                                     "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
                                             r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
                                             Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
                                             Latest_row.get("KanriCD"), Latest_row.get("ShozokuCD"),
-                                            Latest_row.get("DenwaKaitou", 0)]
+                                            Latest_row.get("DenwaKaitou", 0),
+                                            1,  # ← 雨量確定で Shubetsu01は1固定
+                                            0,  # ← 雨量確定で Shubetsu02は0固定
+                                            0,  # ← 雨量確定で Shubetsu03は0固定
+                                            0,  # ← 雨量確定で Shubetsu04は0固定
+                                            0,  # ← 雨量確定で Shubetsu05は0固定
+                                            0,  # ← 雨量確定で Shubetsu06は0固定
+                                            0,  # ← 雨量確定で Shubetsu07は0固定
+                                            0,  # ← 雨量確定で Shubetsu08は0固定
+                                            0,  # ← 雨量確定で Shubetsu09は0固定
+                                            4, # ← 新異常値検知検出システムで HakkenHouhouCDは4固定
+                                            Latest_row.get("KKShubetsuCD")
+                                            ],
                                 },
                                 "DS_ChousaMeisai": {
-                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD"],
-                                    "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD]
+                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD"],
+                                    "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
+                                              JimushoCD, KasenCD, KenCD, SuikeiCD],  
                                 },
                                 "DS_ChousaIjouchiSuiteiGenin": {
                                     "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn"],
