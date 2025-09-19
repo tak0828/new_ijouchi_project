@@ -70,7 +70,7 @@ def toggle_watch(request):
             file_name = os.path.basename(csv_file_path).replace(".csv", "")  # '雨量_注意_新潟デモ'
             file_parts = file_name.split("_")
 
-            Shubetsu_level = file_parts[0] if len(file_parts) > 0 else None        # 種別
+            Shubetsu_level = file_parts[0] if len(file_parts) > 0 else None  # 種別
             Keikai_level = file_parts[1] if len(file_parts) > 1 else None    # 警戒レベル
 
             # CSV読み込み処理
@@ -79,13 +79,13 @@ def toggle_watch(request):
                 with open(csv_file_path, encoding="cp932") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        dt_str = row.get("観測日時")
-                        cd2_str = row.get("統一ID")
+                        Dt_str = row.get("観測日時")
+                        Cd2_str = row.get("統一ID")
                         Kessoku_str = row.get("欠測・未受信")
-                        if not dt_str or not cd2_str:
+                        if not Dt_str or not Cd2_str:
                             continue
                         
-                        csv_dt = datetime.strptime(dt_str.strip(), "%Y/%m/%d %H:%M")
+                        csv_dt = datetime.strptime(Dt_str.strip(), "%Y/%m/%d %H:%M")
                         year_ago = csv_dt - timedelta(days=365)
                         
                         # 欠測・基準値超過フラグ
@@ -99,11 +99,35 @@ def toggle_watch(request):
                                 is_exceed = True
 
                         csv_rows.append({
-                            "統一ID": cd2_str.strip(),
+                            "統一ID": Cd2_str.strip(),
                             "観測日時": csv_dt,
                             "1年前日時": year_ago,
+                            "項目種別": row.get("項目種別"),
+                            "水水ID": row.get("水水ID"),
+                            "観測所名": row.get("観測所名"),
+                            "地方名": row.get("地方名"),
+                            "水系名": row.get("水系名"),
+                            "河川名": row.get("河川名"),
+                            "管理者": row.get("管理者"),
+                            "管理区分": row.get("管理区分"),
+                            "観測値": row.get("観測値"),
+                            "近傍観測所1のID": row.get("近傍観測所1のID"),
+                            "近傍観測所1の名称": row.get("近傍観測所1の名称"),
+                            "近傍観測所1の観測値": row.get("近傍観測所1の観測値"),
+                            "近傍観測所2のID": row.get("近傍観測所2のID"),
+                            "近傍観測所2の名称": row.get("近傍観測所2の名称"),
+                            "近傍観測所2の観測値": row.get("近傍観測所2の観測値"),
+                            "近傍観測所3のID": row.get("近傍観測所3のID"),
+                            "近傍観測所3の名称": row.get("近傍観測所3の名称"),
+                            "近傍観測所3の観測値": row.get("近傍観測所3の観測値"),
+                            "IDW推定値": row.get("IDW推定値"),
+                            "メッシュコード": row.get("メッシュコード"),
+                            "レーダ雨量": row.get("レーダ雨量"),
+                            "IDW異常": row.get("IDW異常"),
+                            "上限値": row.get("上限値"),
                             "欠測・未受信": is_missing,
-                            "基準値超過": is_exceed
+                            "基準値超過": is_exceed,
+                            "連続する異常値": row.get("連続する異常値")
                         })
 
 
@@ -194,13 +218,61 @@ def toggle_watch(request):
                             DS_ChousaIjouchiSuiteiGenin_rows = cursor.fetchall()
 
                             print(f"DS_ChousaIjouchiSuiteiGenin (DateNo={Latest_row['DateNo']}, CenterCD={Latest_row['CenterCD']}) 件数: {len(DS_ChousaIjouchiSuiteiGenin_rows)}")
-                            # for Suitei_row in DS_ChousaIjouchiSuiteiGenin_rows:
-                            #     print(
-                            #         f"推定原因区分={Suitei_row['CISG_SuiteiGeninKbn']}, "
-                            #         f"原因発生個所区分={Suitei_row['CISG_GeninKashoKbn']}, "
-                            #         f"繰り返し発生有無={Suitei_row['CISG_HasseiUM']}"
-                            #     )
 
+                            
+                        # -----------------------データベース登録-----------------------------------------------
+                            # DS_ChousaKihon の新規登録
+                            Insert_Kihon_Sql = """
+                                INSERT INTO DS_ChousaKihon (
+                                    DateNo, CenterCD, HasseiJoukyouCD
+                                ) VALUES (%s, %s, %s)
+                            """
+                            Insert_Kihon_Params = [
+                                Latest_row["DateNo"],
+                                Latest_row["CenterCD"],
+                                # Latest_row["KansokujoCD"],
+                                # Latest_row["ShubetsuCD"],
+                                Latest_row["HasseiJoukyouCD"],
+                            ]
+                            cursor.execute(Insert_Kihon_Sql, Insert_Kihon_Params)
+                            conn.commit()
+
+
+                            # DS_ChousaMeisai の新規登録
+                            Insert_Meisai_Sql = """
+                                INSERT INTO DS_ChousaMeisai (
+                                    DateNo, CenterCD, KansokujoCD, ShubetsuCD, HasseiJoukyouCD
+                                ) VALUES (%s, %s, %s, %s, %s, %s)
+                            """
+                            Insert_Meisai_Params = [
+                                Latest_row["DateNo"],
+                                Latest_row["CenterCD"],
+                                Latest_row["KansokujoCD"],
+                                Latest_row["ShubetsuCD"],
+                                Latest_row["HasseiJoukyouCD"],
+                            ]
+                            cursor.execute(Insert_Meisai_Sql, Insert_Meisai_Params)
+                            conn.commit()
+
+                            
+                            # DS_ChousaIjouchiSuiteiGenin の新規登録
+                            for Suitei_row in DS_ChousaIjouchiSuiteiGenin_rows:
+                                insert_suitei_sql = """
+                                    INSERT INTO DS_ChousaIjouchiSuiteiGenin (
+                                        DateNo, CenterCD, CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
+                                    ) VALUES (%s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(insert_suitei_sql, [
+                                    Suitei_row["DateNo"],
+                                    Suitei_row["CenterCD"],
+                                    Suitei_row["CISG_GeninKashoKbn"],
+                                    Suitei_row["CISG_HasseiUM"],
+                                    Suitei_row["CISG_SuiteiGeninKbn"]
+                                ])
+                            conn.commit()
+
+
+                        # ---------------------------データベース登録-----------------------------------------------
 
                 conn.close()
                 
