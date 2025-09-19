@@ -87,6 +87,8 @@ def toggle_watch(request):
                         
                         csv_dt = datetime.strptime(Dt_str.strip(), "%Y/%m/%d %H:%M")
                         year_ago = csv_dt - timedelta(days=365)
+                        date_str = csv_dt.strftime("%Y/%m/%d")  # DateNo用の文字列 "2025/06/29"
+                        print(date_str)
                         
                         # 欠測・基準値超過フラグ
                         is_missing = False
@@ -205,6 +207,8 @@ def toggle_watch(request):
                                     Latest_row = DS_ChousaKihon_row
 
                         print(f"統一ID {cd2} の最新 DS_ChousaKihon.DateNo (HasseiJoukyouCD=845108): {Latest_row['DateNo'] if Latest_row else None}")
+                        # for col, val in Latest_row.items():  # カラム名と値を一覧で表示
+                        #     print(f"  {col}: {val}")
 
                         # DS_ChousaIjouchiSuiteiGenin を DateNoとCenterCD で推定原因、原因発生個所、繰り返し発生の有無取得
                         if Latest_row:
@@ -222,18 +226,51 @@ def toggle_watch(request):
                             
                         # -----------------------データベース登録-----------------------------------------------
                             # DS_ChousaKihon の新規登録
-                            Insert_Kihon_Sql = """
-                                INSERT INTO DS_ChousaKihon (
-                                    DateNo, CenterCD, HasseiJoukyouCD
-                                ) VALUES (%s, %s, %s)
+
+                            # DB用に分割
+                            KakuninDate = csv_dt.strftime("%Y-%m-%d")   # "2025-06-29"
+                            KakuninTime = csv_dt.strftime("%H:%M")      # "16:50"
+
+                            # その日付の既存DateNoを取得
+                            DateNo_check_sql = """
+                                SELECT DateNo FROM DS_ChousaKihon
+                                WHERE DateNo LIKE %s AND CenterCD=%s
+                                ORDER BY DateNo DESC
                             """
+                            cursor.execute(DateNo_check_sql, [f"{date_str}-%", Latest_row["CenterCD"]])
+                            existing = cursor.fetchall()
+
+                            if existing:
+                                # 既存DateNoの最大連番を取得
+                                last_no = max(int(row['DateNo'].split("-")[1]) for row in existing)
+                                new_no = f"{last_no + 1:03d}"
+                            else:
+                                new_no = "001"
+
+                            DateNo_new = f"{date_str}-{new_no}"
+                            print("新規DateNo:", DateNo_new)
+
+                            #  DS_ChousaKihon のinsert文
+                            Insert_Kihon_Sql = """
+                                    INSERT INTO DS_ChousaKihon (
+                                        DateNo, CenterCD, HasseiJoukyouCD,
+                                        KakuninDate, KakuninTime,
+                                        IjouKessokuKbnCD, JK_Kbn, KanriCD, ShozokuCD, DenwaKaitou
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """
                             Insert_Kihon_Params = [
-                                Latest_row["DateNo"],
+                                DateNo_new,
                                 Latest_row["CenterCD"],
-                                # Latest_row["KansokujoCD"],
-                                # Latest_row["ShubetsuCD"],
-                                Latest_row["HasseiJoukyouCD"],
+                                Latest_row.get("HasseiJoukyouCD"),
+                                KakuninDate,   # YYYY-MM-DD
+                                KakuninTime,   # HH:MM
+                                Latest_row.get("IjouKessokuKbnCD"),
+                                Latest_row.get("JK_Kbn"),
+                                Latest_row.get("KanriCD"),
+                                Latest_row.get("ShozokuCD"),
+                                Latest_row.get("DenwaKaitou", 0),
                             ]
+
                             cursor.execute(Insert_Kihon_Sql, Insert_Kihon_Params)
                             conn.commit()
 
@@ -254,6 +291,7 @@ def toggle_watch(request):
                             cursor.execute(Insert_Meisai_Sql, Insert_Meisai_Params)
                             conn.commit()
 
+                            print("DS_ChousaKihon に登録しました:", Insert_Kihon_Params)
                             
                             # DS_ChousaIjouchiSuiteiGenin の新規登録
                             for Suitei_row in DS_ChousaIjouchiSuiteiGenin_rows:
