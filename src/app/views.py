@@ -201,7 +201,7 @@ def toggle_watch(request):
                             cursor.execute(sql3, [DateNo])
                             DS_ChousaKihon_row = cursor.fetchone()
                             if DS_ChousaKihon_row:
-                                DS_ChousaKihon_results.extend(DS_ChousaKihon_row)
+                                DS_ChousaKihon_results.append(DS_ChousaKihon_row)
 
                                 if (Latest_row is None) or (DS_ChousaKihon_row["DateNo"] > Latest_row["DateNo"]):
                                     Latest_row = DS_ChousaKihon_row
@@ -219,9 +219,9 @@ def toggle_watch(request):
                                 AND CenterCD = %s
                                 """
                             cursor.execute(sql4, [Latest_row["DateNo"], Latest_row["CenterCD"]])
-                            DS_ChousaIjouchiSuiteiGenin_rows = cursor.fetchall()
+                            DS_ChousaIjouchiSuiteiGenin_row = cursor.fetchone()
 
-                            print(f"DS_ChousaIjouchiSuiteiGenin (DateNo={Latest_row['DateNo']}, CenterCD={Latest_row['CenterCD']}) 件数: {len(DS_ChousaIjouchiSuiteiGenin_rows)}")
+                            print(f"DS_ChousaIjouchiSuiteiGenin (DateNo={Latest_row['DateNo']}, CenterCD={Latest_row['CenterCD']}) 件数: {len(DS_ChousaIjouchiSuiteiGenin_row)}")
 
                             
                         # -----------------------データベース登録-----------------------------------------------
@@ -238,17 +238,17 @@ def toggle_watch(request):
                                 ORDER BY DateNo DESC
                             """
                             cursor.execute(DateNo_check_sql, [f"{date_str}-%", Latest_row["CenterCD"]])
-                            existing = cursor.fetchall()
+                            DateNo_existing = cursor.fetchall()
 
-                            if existing:
+                            if DateNo_existing:
                                 # 既存DateNoの最大連番を取得
-                                last_no = max(int(row['DateNo'].split("-")[1]) for row in existing)
-                                new_no = f"{last_no + 1:03d}"
+                                DateNo_last_no = max(int(row['DateNo'].split("-")[1]) for row in DateNo_existing)
+                                DateNo_New_no = f"{DateNo_last_no + 1:03d}"
                             else:
-                                new_no = "001"
+                                DateNo_New_no = "001"
 
-                            DateNo_new = f"{date_str}-{new_no}"
-                            print("新規DateNo:", DateNo_new)
+                            DateNo_New = f"{date_str}-{DateNo_New_no}"
+                            print("新規DateNo:", DateNo_New)
 
                             #  DS_ChousaKihon のinsert文
                             Insert_Kihon_Sql = """
@@ -259,7 +259,7 @@ def toggle_watch(request):
                                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 """
                             Insert_Kihon_Params = [
-                                DateNo_new,
+                                DateNo_New,
                                 Latest_row["CenterCD"],
                                 Latest_row.get("HasseiJoukyouCD"),
                                 KakuninDate,   # YYYY-MM-DD
@@ -274,41 +274,97 @@ def toggle_watch(request):
                             cursor.execute(Insert_Kihon_Sql, Insert_Kihon_Params)
                             conn.commit()
 
+                            # 観測所ごとの連番を保持する辞書
+                            seq_dict = {}
+
+                            # 観測所ごとの次の連番を取得(並び順)
+                            next_seq = seq_dict.get(KansokujoCD, 1)
+
+                            # 今回は MeisaiNo = 数字だけ
+                            MeisaiNo = str(next_seq)
 
                             # DS_ChousaMeisai の新規登録
                             Insert_Meisai_Sql = """
                                 INSERT INTO DS_ChousaMeisai (
-                                    DateNo, CenterCD, KansokujoCD, ShubetsuCD, HasseiJoukyouCD
+                                    DateNo, CenterCD, MeisaiNo, SeqNo,
+                                    ShubetsuCD, KansokujoCD
                                 ) VALUES (%s, %s, %s, %s, %s, %s)
                             """
                             Insert_Meisai_Params = [
-                                Latest_row["DateNo"],
-                                Latest_row["CenterCD"],
-                                Latest_row["KansokujoCD"],
-                                Latest_row["ShubetsuCD"],
-                                Latest_row["HasseiJoukyouCD"],
+                                DateNo_New,
+                                Latest_row.get("CenterCD"),
+                                MeisaiNo,
+                                next_seq,
+                                ShubetsuCD,
+                                KansokujoCD,
                             ]
+
                             cursor.execute(Insert_Meisai_Sql, Insert_Meisai_Params)
                             conn.commit()
 
-                            print("DS_ChousaKihon に登録しました:", Insert_Kihon_Params)
                             
                             # DS_ChousaIjouchiSuiteiGenin の新規登録
-                            for Suitei_row in DS_ChousaIjouchiSuiteiGenin_rows:
-                                insert_suitei_sql = """
-                                    INSERT INTO DS_ChousaIjouchiSuiteiGenin (
-                                        DateNo, CenterCD, CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
-                                    ) VALUES (%s, %s, %s, %s, %s)
-                                """
-                                cursor.execute(insert_suitei_sql, [
-                                    Suitei_row["DateNo"],
-                                    Suitei_row["CenterCD"],
-                                    Suitei_row["CISG_GeninKashoKbn"],
-                                    Suitei_row["CISG_HasseiUM"],
-                                    Suitei_row["CISG_SuiteiGeninKbn"]
-                                ])
+                            Insert_Suitei_Sql = """
+                                INSERT INTO DS_ChousaIjouchiSuiteiGenin (
+                                    DateNo, CenterCD, CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
+                                ) VALUES (%s, %s, %s, %s, %s)
+                            """
+                            Insert_Suitei_Params = [
+                                DateNo_New,
+                                Latest_row.get("CenterCD"),
+                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
+                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
+                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn")
+                            ]
+
+                            cursor.execute(Insert_Suitei_Sql, Insert_Suitei_Params)
+                            conn.commit()
+                            
+
+                            # DS_ChousaIjouchiHandan の新規登録
+                            Insert_Handan_Sql = """
+                                INSERT INTO  DS_ChousaIjouchiHandan (
+                                    DateNo, CenterCD
+                                ) VALUES (%s, %s)
+                            """
+                            Insert_Handan_Params = [
+                                DateNo_New,
+                                Latest_row.get("CenterCD")
+                            ]
+
+                            cursor.execute(Insert_Handan_Sql, Insert_Handan_Params)
                             conn.commit()
 
+
+                            # DS_ChousaKaizenTaiou の新規登録
+                            Insert_KaizenTaiou_Sql = """
+                                INSERT INTO DS_ChousaKaizenTaiou (
+                                    DateNo, CenterCD
+                                ) VALUES (%s, %s)
+                            """
+                            Insert_KaizenTaiou_Params = [
+                                DateNo_New,
+                                Latest_row.get("CenterCD")
+                            ]
+
+                            cursor.execute(Insert_KaizenTaiou_Sql, Insert_KaizenTaiou_Params)
+                            conn.commit()
+
+                            # DS_ChousashoShokanKikanKinyuuran の新規登録
+                            Insert_ShokanKikanKinyuuran_Sql = """
+                                INSERT INTO DS_ChousashoShokanKikanKinyuuran (
+                                    DateNo, CenterCD
+                                ) VALUES (%s, %s)
+                            """
+                            Insert_ShokanKikanKinyuuran_Params = [
+                                DateNo_New,
+                                Latest_row.get("CenterCD"),
+                            ]
+
+                            cursor.execute(Insert_ShokanKikanKinyuuran_Sql, Insert_ShokanKikanKinyuuran_Params)
+                            conn.commit()
+
+                            print(f"統一ID {cd2} のデータベース登録が完了しました。新規DateNo: {DateNo_New}")
 
                         # ---------------------------データベース登録-----------------------------------------------
 
