@@ -29,6 +29,17 @@ def login_view(request):
 
     return render(request, "registration/login.html", {"message": message})
 
+def Chousasho_insert_into_table(cursor, Chousasho_table_name, columns, values):
+    """
+    汎用INSERT関数
+    """
+    columns_str = ", ".join(columns)
+    placeholders = ", ".join(["%s"] * len(columns))
+    sql = f"INSERT INTO {Chousasho_table_name} ({columns_str}) VALUES ({placeholders})"
+    cursor.execute(sql, values)
+
+
+
 @login_required
 def home_view(request):
     # 監視状態を取得（なければ作成）
@@ -46,6 +57,8 @@ def home_view(request):
 def logout_view(request):
     logout(request)
     return redirect("login")
+
+
 
 @login_required
 @require_POST
@@ -164,6 +177,7 @@ def toggle_watch(request):
 
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
+                seq_dict = {}  # 観測所ごとの連番保持用辞書
                 for r in csv_rows:
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
@@ -250,119 +264,45 @@ def toggle_watch(request):
                             DateNo_New = f"{date_str}-{DateNo_New_no}"
                             print("新規DateNo:", DateNo_New)
 
-                            #  DS_ChousaKihon のinsert文
-                            Insert_Kihon_Sql = """
-                                    INSERT INTO DS_ChousaKihon (
-                                        DateNo, CenterCD, HasseiJoukyouCD,
-                                        KakuninDate, KakuninTime,
-                                        IjouKessokuKbnCD, JK_Kbn, KanriCD, ShozokuCD, DenwaKaitou
-                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """
-                            Insert_Kihon_Params = [
-                                DateNo_New,
-                                Latest_row["CenterCD"],
-                                Latest_row.get("HasseiJoukyouCD"),
-                                KakuninDate,   # YYYY-MM-DD
-                                KakuninTime,   # HH:MM
-                                Latest_row.get("IjouKessokuKbnCD"),
-                                Latest_row.get("JK_Kbn"),
-                                Latest_row.get("KanriCD"),
-                                Latest_row.get("ShozokuCD"),
-                                Latest_row.get("DenwaKaitou", 0),
-                            ]
-
-                            cursor.execute(Insert_Kihon_Sql, Insert_Kihon_Params)
-                            conn.commit()
-
-                            # 観測所ごとの連番を保持する辞書
-                            seq_dict = {}
-
-                            # 観測所ごとの次の連番を取得(並び順)
+                            # 次の MeisaiNo
                             next_seq = seq_dict.get(KansokujoCD, 1)
+                            seq_dict[KansokujoCD] = next_seq + 1
 
-                            # 今回は MeisaiNo = 数字だけ
-                            MeisaiNo = str(next_seq)
 
-                            # DS_ChousaMeisai の新規登録
-                            Insert_Meisai_Sql = """
-                                INSERT INTO DS_ChousaMeisai (
-                                    DateNo, CenterCD, MeisaiNo, SeqNo,
-                                    ShubetsuCD, KansokujoCD
-                                ) VALUES (%s, %s, %s, %s, %s, %s)
-                            """
-                            Insert_Meisai_Params = [
-                                DateNo_New,
-                                Latest_row.get("CenterCD"),
-                                MeisaiNo,
-                                next_seq,
-                                ShubetsuCD,
-                                KansokujoCD,
-                            ]
+                            # 挿入データまとめ
+                            Chousasho_insert_data = {
+                                "DS_ChousaKihon": {
+                                    "columns": ["DateNo", "CenterCD", "HasseiJoukyouCD",
+                                                "KakuninDate", "KakuninTime",
+                                                "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou"],
+                                    "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
+                                            r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
+                                            Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
+                                            Latest_row.get("KanriCD"), Latest_row.get("ShozokuCD"),
+                                            Latest_row.get("DenwaKaitou", 0)]
+                                },
+                                "DS_ChousaMeisai": {
+                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD"],
+                                    "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD]
+                                },
+                                "DS_ChousaIjouchiSuiteiGenin": {
+                                    "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn"],
+                                    "values": [DateNo_New, Latest_row.get("CenterCD"),
+                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
+                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
+                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn")]
+                                },
+                                "DS_ChousaIjouchiHandan": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]},
+                                "DS_ChousaKaizenTaiou": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]},
+                                "DS_ChousashoShokanKikanKinyuuran": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]}
+                            }
 
-                            cursor.execute(Insert_Meisai_Sql, Insert_Meisai_Params)
+                            # 一括挿入
+                            for Chousasho_table_name, Chousasho_data in Chousasho_insert_data.items():
+                                Chousasho_insert_into_table(cursor, Chousasho_table_name, Chousasho_data["columns"], Chousasho_data["values"])
                             conn.commit()
 
-                            
-                            # DS_ChousaIjouchiSuiteiGenin の新規登録
-                            Insert_Suitei_Sql = """
-                                INSERT INTO DS_ChousaIjouchiSuiteiGenin (
-                                    DateNo, CenterCD, CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
-                                ) VALUES (%s, %s, %s, %s, %s)
-                            """
-                            Insert_Suitei_Params = [
-                                DateNo_New,
-                                Latest_row.get("CenterCD"),
-                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
-                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
-                                DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn")
-                            ]
-
-                            cursor.execute(Insert_Suitei_Sql, Insert_Suitei_Params)
-                            conn.commit()
-                            
-
-                            # DS_ChousaIjouchiHandan の新規登録
-                            Insert_Handan_Sql = """
-                                INSERT INTO  DS_ChousaIjouchiHandan (
-                                    DateNo, CenterCD
-                                ) VALUES (%s, %s)
-                            """
-                            Insert_Handan_Params = [
-                                DateNo_New,
-                                Latest_row.get("CenterCD")
-                            ]
-
-                            cursor.execute(Insert_Handan_Sql, Insert_Handan_Params)
-                            conn.commit()
-
-
-                            # DS_ChousaKaizenTaiou の新規登録
-                            Insert_KaizenTaiou_Sql = """
-                                INSERT INTO DS_ChousaKaizenTaiou (
-                                    DateNo, CenterCD
-                                ) VALUES (%s, %s)
-                            """
-                            Insert_KaizenTaiou_Params = [
-                                DateNo_New,
-                                Latest_row.get("CenterCD")
-                            ]
-
-                            cursor.execute(Insert_KaizenTaiou_Sql, Insert_KaizenTaiou_Params)
-                            conn.commit()
-
-                            # DS_ChousashoShokanKikanKinyuuran の新規登録
-                            Insert_ShokanKikanKinyuuran_Sql = """
-                                INSERT INTO DS_ChousashoShokanKikanKinyuuran (
-                                    DateNo, CenterCD
-                                ) VALUES (%s, %s)
-                            """
-                            Insert_ShokanKikanKinyuuran_Params = [
-                                DateNo_New,
-                                Latest_row.get("CenterCD"),
-                            ]
-
-                            cursor.execute(Insert_ShokanKikanKinyuuran_Sql, Insert_ShokanKikanKinyuuran_Params)
-                            conn.commit()
+                            DS_ChousaKihon_counts.append({"統一ID": cd2, "DateNo": DateNo_New})
 
                             print(f"統一ID {cd2} のデータベース登録が完了しました。新規DateNo: {DateNo_New}")
 
@@ -410,6 +350,8 @@ def toggle_watch(request):
             'success': False,
             'message': f'エラーが発生しました: {str(e)}'
         })
+
+
 
 @login_required
 def get_watch_status(request):
