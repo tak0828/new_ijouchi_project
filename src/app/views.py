@@ -10,7 +10,9 @@ from app.models import  WatchStatus
 from datetime import datetime, timedelta
 
 import json
+import sys
 import os
+import subprocess
 import csv
 import pymysql
 
@@ -149,6 +151,28 @@ def toggle_watch(request):
                 if not csv_rows:
                     print("CSVに有効な行がありません")
                     return JsonResponse({"status": "no_data"})
+
+
+                # -----------------------attached_file.pyを実行-----------------------------------------------
+
+                attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
+               
+                try:
+                    # subprocess.run(["python", attched_file_path], check=True, cwd=settings.BASE_DIR) # cwdで作業ディレクトリを指定(プロジェクト直下で実行)
+                    subprocess.run(
+                            [sys.executable, attached_file_path],      # コンテナの Python を使う
+                            check=True,
+                            cwd=os.path.dirname(attached_file_path)    # /app/app をカレントディレクトリに
+                        )
+                    print("attached_file.py が正常に実行されました")
+                
+                except subprocess.CalledProcessError as e:  
+                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
+                    return JsonResponse({"status": "attached_file_error", "message": str(e)})
+                
+                return JsonResponse({"status": "started", "counts": len(csv_rows)})    
+                
+                # -----------------------attached_file.pyを実行-----------------------------------------------
 
                 # MariaDB接続（今回は193サーバーのIjouchiDBV6を使用）
                 conn = pymysql.connect(
