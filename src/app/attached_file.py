@@ -74,26 +74,24 @@ print("受け取りCSV:", test_csv_row)
 
 def get_rireki_date(test_csv_row):
     """
-    CSVの観測日時から10分前の時刻を取得し、
-    Year, Month, Hour, Minute を返す
+    CSVの観測日時をそのまま取得し、
+    Year, Month, Day, Hour, Minute を返す
     """
     if "観測日時" not in test_csv_row:
         raise ValueError("観測日時が存在しません")
 
     dt = test_csv_row["観測日時"]
     if not isinstance(dt, datetime):
-        dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")  # 文字列の場合も対応
+        # CSVの文字列形式が "YYYY-MM-DD HH:MM:SS" の場合
+        dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
 
-    # 10分前にする
-    dt_minus_10 = dt - timedelta(minutes=10)
+    Year = dt.strftime("%Y")
+    Month = dt.strftime("%m")
+    Day = dt.strftime("%d")
+    Hour = dt.strftime("%H")
+    Minute = dt.strftime("%M")
 
-    Year = dt_minus_10.strftime("%Y")
-    Month = dt_minus_10.strftime("%m")
-    Hour = dt_minus_10.strftime("%H")
-    Minute = dt_minus_10.strftime("%M")
-
-    return Year, Month, Hour, Minute
-
+    return Year, Month, Day, Hour, Minute
 
 # スクリーンショットを保存＆ZIP化（両方残す）
 def save_screenshot_and_zip(driver, file_name_png):
@@ -141,7 +139,6 @@ SuikeiName = test_csv_row.get("水系名")
 RiverName = test_csv_row.get("河川名")
 KanriKbn = test_csv_row.get("管理区分")
 Syubetu = test_csv_row.get("項目種別")
-ChihouCD = test_csv_row.get("地方名")
 Kinbou1_KansokuName = kinbou_data[0]["KansokuName"]
 Kinbou1_ObsrvId = kinbou_data[0]["ObsrvId"]
 Kinbou2_KansokuName = kinbou_data[1]["KansokuName"]
@@ -151,28 +148,11 @@ Kinbou3_ObsrvId = kinbou_data[2]["ObsrvId"]
 DateNO = test_csv_row.get("DateNo") # View 側で生成した DateNo をそのまま使用
 clat = test_csv_row.get("緯度") # View 側(MS_Kansokujoの緯度) をそのまま使用
 clon = test_csv_row.get("経度") # View 側(MS_Kansokujoの経度) をそのまま使用
+ChihouCD = test_csv_row.get("地方CD") # View 側(MS_Kansokujoの地方CD) をそのまま使用
 
-print(test_csv_row["観測日時"])
+# キャプチャ処理用の時刻を取得
+Year, Month, Day, Hour, Minute = get_rireki_date(test_csv_row)
 
-
-
-# 確認用
-# print("KansokuName:", KansokuName)
-# print("ObsrvId:", ObsrvId)
-# print("SuikeiName:", SuikeiName)
-# print("RiverName:", RiverName)
-# print("KanriKbn:", KanriKbn)
-# print("Syubetu:", Syubetu)
-# print("ChihouCD:", ChihouCD)
-# print("DateNO:", DateNO)
-# print("clat:", clat)
-# print("clon:", clon)
-# print("Kinbou1_KansokuName:", Kinbou1_KansokuName)
-# print("Kinbou1_ObsrvId:", Kinbou1_ObsrvId)
-# print("Kinbou2_KansokuName:", Kinbou2_KansokuName)
-# print("Kinbou2_ObsrvId:", Kinbou2_ObsrvId)
-# print("Kinbou3_KansokuName:", Kinbou3_KansokuName)
-# print("Kinbou3_ObsrvId:", Kinbou3_ObsrvId)
 
 
 #水位グラフキャプチャ処理
@@ -224,23 +204,11 @@ driver.find_element(By.XPATH, '//*[@id="mainHeadDiv"]/div[3]/div/table/tbody/tr/
 #*****************************************************
 
 
-
-
-
-
-# 画面を最大化
-# driver.maximize_window()
 time.sleep(3)
 # スクリーンショットを保存
-# driver.save_screenshot(FileName + ".png")
 save_path = FileName + ".png"
 driver.save_screenshot(save_path)
-# print(f"スクショ保存: {save_path}")
 save_screenshot_and_zip(driver, save_path)
-
-# 画面を戻す
-# driver.minimize_window()
-
 
 
 # # テーブルを取得
@@ -256,19 +224,21 @@ TempFileNo = "20"
 FileName = DateNO + "_" + TempFileNo
 URL1 = "https://city.river.go.jp/kawabou/cityRadarRuika.do?init=init&areaCd="
 URL2 = "&gamenId=02-1802"
-URL = URL1 + ChihouCD + URL2
+URL = URL1 + str(ChihouCD) + URL2
 
 driver.get(URL)
 
 #*****************************************************
 #指定時刻を表示する処理
 # selectタグを取得
+
 WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located)
 iframe = driver.find_element(By.ID, "ctrlTimeFrm")
 driver.switch_to.frame(iframe)
 #***************
 # From
 #***************
+date_obj = test_csv_row["観測日時"]   # ここで date_obj を定義
 #3時間前を設定
 Fdate_obj = date_obj - timedelta(hours=3)
 FYY =  str(Fdate_obj.year)
@@ -351,23 +321,17 @@ driver.find_element(By.XPATH, '//*[@id="form1"]/table/tbody/tr[2]/td[5]/a/img').
 
 
 
-# 画面を最大化
-# driver.maximize_window()
 time.sleep(3)
 # スクリーンショットを保存
-# driver.save_screenshot(FileName + ".png")
 save_path = FileName + ".png"
 driver.save_screenshot(save_path)
-# print(f"スクショ保存: {save_path}")
-save_screenshot_and_zip(driver, FileName)
+save_screenshot_and_zip(driver, save_path)
 
 # 画面を戻す
 # driver.minimize_window()
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
 
-# XRAINキャプチャ処理用の時刻を取得
-Year, Month, Hour, Minute = get_rireki_date(test_csv_row)
 
 # clat = "37.661679492823"
 # clon = "138.888006215311"
@@ -376,7 +340,9 @@ Year, Month, Hour, Minute = get_rireki_date(test_csv_row)
 # Hour = "01"
 # Minute = "10"
 
-Rdtime = Year + "%2F" + Month + "%20" + Hour + "%3A" + Minute
+# Rdtime = Year + "%2F" + Month + "%20" + Hour + "%3A" + Minute
+Rdtime = Year + "%2F" + Month + "%2F" + Day + "%20" + Hour + "%3A" + Minute
+
 
 
 TempFileNo = "30"
@@ -387,25 +353,13 @@ URL3 ="&fld=0&mapType=0&viewGrpStg=0&viewRd=1&viewRW=1&viewRiver=1&viewPoint=1&e
 URL = URL1 + clat + URL2 + clon + URL3 + Rdtime
 driver.get(URL)
 
-# 画面を最大化
-# driver.maximize_window()
 time.sleep(1)
-# スクリーンショットを保存
-# driver.save_screenshot(FileName + ".png")
 
 save_path = FileName + ".png"
 driver.save_screenshot(save_path)
-# print(f"スクショ保存: {save_path}")
-save_screenshot_and_zip(driver, FileName)
+save_screenshot_and_zip(driver, save_path)
 
 
-# # 既存の ZIP ファイル名(DateNO_screenshot.zip)
-# zip_filename = f"{DateNO}_screenshot.zip"
-
-
-
-# 画面を戻す
-# driver.minimize_window()
 
 time.sleep(1)
 

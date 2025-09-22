@@ -168,7 +168,7 @@ def toggle_watch(request):
                 # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
-                sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
+                sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido, CenterCD FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
                 cursor.execute(sql, KansokujoCD2_list)
                 MS_Kansokujo_results = cursor.fetchall()
                 if not MS_Kansokujo_results:
@@ -177,7 +177,7 @@ def toggle_watch(request):
                     return JsonResponse({"status": "no_ms_record"})
 
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
-                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"], r["Ido"], r["Keido"] ) for r in MS_Kansokujo_results}
+                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"], r["Ido"], r["Keido"], r["CenterCD"] ) for r in MS_Kansokujo_results}
 
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
@@ -186,7 +186,7 @@ def toggle_watch(request):
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
                         continue
-                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, Ido, Keido = MS_Kansokujo_dict[cd2]
+                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, Ido, Keido, CenterCD = MS_Kansokujo_dict[cd2]
                     
                     sql2 = """
                         SELECT DateNo
@@ -296,6 +296,11 @@ def toggle_watch(request):
                                 # 緯度経度を追加
                                 test_csv_row["緯度"] = Ido
                                 test_csv_row["経度"] = Keido
+                                
+                                # CenterCDを追加
+                                test_csv_row["地方CD"] = CenterCD
+
+                                
 
                                 # CSV行をJSON文字列に変換
                                 csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
@@ -315,7 +320,6 @@ def toggle_watch(request):
                                     print(f"attached_file.py の実行中にエラーが発生しました: {e}")
                                     return JsonResponse({"status": "attached_file_error", "message": str(e)})
                                 
-                                return JsonResponse({"status": "started", "counts": len(csv_rows)})    
                             
                             # -----------------------attached_file.pyを実行-----------------------------------------------
 
