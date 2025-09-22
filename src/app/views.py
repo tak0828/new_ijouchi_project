@@ -165,10 +165,10 @@ def toggle_watch(request):
 
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-                # 統一IDから MS_KansokujoからKansokujoCD を取得
+                # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
-                sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2 FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
+                sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
                 cursor.execute(sql, KansokujoCD2_list)
                 MS_Kansokujo_results = cursor.fetchall()
                 if not MS_Kansokujo_results:
@@ -177,7 +177,7 @@ def toggle_watch(request):
                     return JsonResponse({"status": "no_ms_record"})
 
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
-                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"]) for r in MS_Kansokujo_results}
+                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"], r["Ido"], r["Keido"] ) for r in MS_Kansokujo_results}
 
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
@@ -186,7 +186,7 @@ def toggle_watch(request):
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
                         continue
-                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD = MS_Kansokujo_dict[cd2]
+                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, Ido, Keido = MS_Kansokujo_dict[cd2]
                     
                     sql2 = """
                         SELECT DateNo
@@ -282,8 +282,20 @@ def toggle_watch(request):
                                 if isinstance(test_csv_row["1年前日時"], datetime):
                                     test_csv_row["1年前日時"] = test_csv_row["1年前日時"].strftime("%Y/%m/%d %H:%M")
 
-                                # DateNo を追加
-                                test_csv_row["DateNo"] = DateNo_New
+                                # ディレクトリ判定になるため　/ を - に置換
+                                # 1.DateNo を追加※日付部分を置換（YYYY/MM/DD → YYYYMMDD）
+                                date_part = DateNo_New.split("-")[0].replace("/", "")   # "20250629"
+
+                                # 2. 連番部分をゼロパディング
+                                serial_part = DateNo_New.split("-")[1].zfill(3)         # "003"
+
+                                # 3. 結合
+                                DateNo_CSV = f"{date_part}-{serial_part}"         # "20250629-003"  
+                                test_csv_row["DateNo"] = DateNo_CSV
+
+                                # 緯度経度を追加
+                                test_csv_row["緯度"] = Ido
+                                test_csv_row["経度"] = Keido
 
                                 # CSV行をJSON文字列に変換
                                 csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
@@ -292,7 +304,6 @@ def toggle_watch(request):
                                 attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
                             
                                 try:
-                                    # subprocess.run(["python", attched_file_path], check=True, cwd=settings.BASE_DIR) # cwdで作業ディレクトリを指定(プロジェクト直下で実行)
                                     subprocess.run(
                                             [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
                                             check=True,

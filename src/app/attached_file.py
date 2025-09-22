@@ -22,6 +22,7 @@ chrome_options.add_argument("--disable-dev-shm-usage") # メモリ対策
 chrome_options.add_argument("--disable-gpu")        # GPU無効化
 chrome_options.add_argument("--remote-debugging-port=9222") # デバッグ用
 chrome_options.add_argument(f"--user-data-dir=/tmp/selenium_user_data_{os.getpid()}")  # ユニークなプロファイル
+chrome_options.add_argument("--window-size=1920,1500") # ウィンドウサイズ指定(ヘッドレスモードで必要)
 
 # Chromeドライバーのパス（必要に応じて変更）
 driver = webdriver.Chrome(options=chrome_options)
@@ -65,13 +66,46 @@ else:
 # datetime に戻したい場合
 if "観測日時" in test_csv_row:
     test_csv_row["観測日時"] = datetime.strptime(test_csv_row["観測日時"], "%Y/%m/%d %H:%M")
-if "1年前日時" in test_csv_row:
-    test_csv_row["1年前日時"] = datetime.strptime(test_csv_row["1年前日時"], "%Y/%m/%d %H:%M")
+# if "1年前日時" in test_csv_row:
+#     test_csv_row["1年前日時"] = datetime.strptime(test_csv_row["1年前日時"], "%Y/%m/%d %H:%M")
 
 
 print("受け取りCSV:", test_csv_row)
 
+def get_rireki_date(test_csv_row):
+    """
+    CSVの観測日時から10分前の時刻を取得し、
+    Year, Month, Hour, Minute を返す
+    """
+    if "観測日時" not in test_csv_row:
+        raise ValueError("観測日時が存在しません")
 
+    dt = test_csv_row["観測日時"]
+    if not isinstance(dt, datetime):
+        dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")  # 文字列の場合も対応
+
+    # 10分前にする
+    dt_minus_10 = dt - timedelta(minutes=10)
+
+    Year = dt_minus_10.strftime("%Y")
+    Month = dt_minus_10.strftime("%m")
+    Hour = dt_minus_10.strftime("%H")
+    Minute = dt_minus_10.strftime("%M")
+
+    return Year, Month, Hour, Minute
+
+
+# スクリーンショットを保存＆ZIP化（両方残す）
+def save_screenshot_and_zip(driver, file_name_png):
+    # PNG保存
+    driver.save_screenshot(file_name_png)
+    print(f"スクショ保存: {file_name_png}")
+    
+    # ZIP化
+    zip_filename = file_name_png.replace(".png", ".zip")
+    with zipfile.ZipFile(zip_filename, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write(file_name_png)
+    print(f"ZIP作成完了: {zip_filename}")
 
 
 #リストから代入すること
@@ -85,6 +119,19 @@ print("受け取りCSV:", test_csv_row)
 # ChihouCD = "84"
 
 # DateNO = "20250918-001"
+# 近傍観測所をループでまとめる
+kinbou_data = []
+for i in range(1, 4):
+    KinbouName = test_csv_row.get(f"近傍観測所{i}の名称")
+    KinbouObsrvId = test_csv_row.get(f"近傍観測所{i}のID")
+    if KinbouObsrvId and not KinbouObsrvId.startswith("0"):
+        KinbouObsrvId = "0" + KinbouObsrvId
+    kinbou_data.append({
+        "KansokuName": KinbouName,
+        "ObsrvId": KinbouObsrvId 
+    })
+
+
 
 KansokuName = test_csv_row.get("観測所名")
 ObsrvId = test_csv_row.get("統一ID")
@@ -95,19 +142,37 @@ RiverName = test_csv_row.get("河川名")
 KanriKbn = test_csv_row.get("管理区分")
 Syubetu = test_csv_row.get("項目種別")
 ChihouCD = test_csv_row.get("地方名")
+Kinbou1_KansokuName = kinbou_data[0]["KansokuName"]
+Kinbou1_ObsrvId = kinbou_data[0]["ObsrvId"]
+Kinbou2_KansokuName = kinbou_data[1]["KansokuName"]
+Kinbou2_ObsrvId = kinbou_data[1]["ObsrvId"]
+Kinbou3_KansokuName = kinbou_data[2]["KansokuName"]
+Kinbou3_ObsrvId = kinbou_data[2]["ObsrvId"]
 DateNO = test_csv_row.get("DateNo") # View 側で生成した DateNo をそのまま使用
+clat = test_csv_row.get("緯度") # View 側(MS_Kansokujoの緯度) をそのまま使用
+clon = test_csv_row.get("経度") # View 側(MS_Kansokujoの経度) をそのまま使用
+
+print(test_csv_row["観測日時"])
+
 
 
 # 確認用
-print("KansokuName:", KansokuName)
-print("ObsrvId:", ObsrvId)
-print("SuikeiName:", SuikeiName)
-print("RiverName:", RiverName)
-print("KanriKbn:", KanriKbn)
-print("Syubetu:", Syubetu)
-print("ChihouCD:", ChihouCD)
-print("DateNO:", DateNO)
-
+# print("KansokuName:", KansokuName)
+# print("ObsrvId:", ObsrvId)
+# print("SuikeiName:", SuikeiName)
+# print("RiverName:", RiverName)
+# print("KanriKbn:", KanriKbn)
+# print("Syubetu:", Syubetu)
+# print("ChihouCD:", ChihouCD)
+# print("DateNO:", DateNO)
+# print("clat:", clat)
+# print("clon:", clon)
+# print("Kinbou1_KansokuName:", Kinbou1_KansokuName)
+# print("Kinbou1_ObsrvId:", Kinbou1_ObsrvId)
+# print("Kinbou2_KansokuName:", Kinbou2_KansokuName)
+# print("Kinbou2_ObsrvId:", Kinbou2_ObsrvId)
+# print("Kinbou3_KansokuName:", Kinbou3_KansokuName)
+# print("Kinbou3_ObsrvId:", Kinbou3_ObsrvId)
 
 
 #水位グラフキャプチャ処理
@@ -120,20 +185,61 @@ URL = URL1 + ObsrvId + URL2
 driver.get(URL)
 
 #*****************************************************
-#指定時刻を表示する処理を入れること
+#指定時刻を表示する処理
+# selectタグを取得
+dropdown = driver.find_element(By.ID, "cityRainKobetu_commonForm_yearMonthString") 
+# Selectオブジェクトを生成
+select = Select(dropdown)
+if Month[0] == "0":
+    YM = Year + "年" + Month[1] + "月"
+else:
+    YM = Year + "年" + Month + "月"
+# 選択方法③：表示テキストで選択
+select.select_by_visible_text(YM)  # 表示されているテキストで選択
 
 
+dropdown = driver.find_element(By.ID, "cityRainKobetu_commonForm_dayString")
+select = Select(dropdown)
+if Day[0] == "0":
+    DD = Day[1] + "日"
+else:
+    DD = Day + "日"
+select.select_by_visible_text(DD)  # 表示されているテキストで選択
 
+dropdown = driver.find_element(By.ID, "cityRainKobetu_commonForm_hourString")
+select = Select(dropdown)
+
+if len(Hour) == 1:
+    HH = "0" + Hour[0] + "時"
+else:
+    HH = Hour + "時"
+select.select_by_visible_text(HH)  # 表示されているテキストで選択
+
+dropdown = driver.find_element(By.ID, "cityRainKobetu_commonForm_minuteString")
+select = Select(dropdown)
+MM = Minute + "分"
+select.select_by_visible_text(MM)  # 表示されているテキストで選択
+
+driver.find_element(By.XPATH, '//*[@id="mainHeadDiv"]/div[3]/div/table/tbody/tr/td/table/tbody/tr[3]/td/table/tbody/tr/td[2]/a/img').click()
 #*****************************************************
 
 
+
+
+
+
 # 画面を最大化
-driver.maximize_window()
-time.sleep(2)
+# driver.maximize_window()
+time.sleep(3)
 # スクリーンショットを保存
-driver.save_screenshot(FileName + ".png")
+# driver.save_screenshot(FileName + ".png")
+save_path = FileName + ".png"
+driver.save_screenshot(save_path)
+# print(f"スクショ保存: {save_path}")
+save_screenshot_and_zip(driver, save_path)
+
 # 画面を戻す
-driver.minimize_window()
+# driver.minimize_window()
 
 
 
@@ -155,27 +261,120 @@ URL = URL1 + ChihouCD + URL2
 driver.get(URL)
 
 #*****************************************************
-#指定時刻を表示する処理を入れること
+#指定時刻を表示する処理
+# selectタグを取得
+WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located)
+iframe = driver.find_element(By.ID, "ctrlTimeFrm")
+driver.switch_to.frame(iframe)
+#***************
+# From
+#***************
+#3時間前を設定
+Fdate_obj = date_obj - timedelta(hours=3)
+FYY =  str(Fdate_obj.year)
+FMounth =  str(Fdate_obj.month)
+FDD = str(Fdate_obj.day)
+FHH = str(Fdate_obj.hour)
+FMM = str(Fdate_obj.minute)
+
+dropdown = driver.find_element(By.XPATH, "/html/body/form/table/tbody/tr[1]/td[1]/select") 
+select = Select(dropdown)
+YYM = select.select_by_value
+if FMounth[0] == "0":
+    YM = FYY + "年" + FMounth[1] + "月"
+else:
+    YM = FYY + "年" + FMounth + "月"
+# 選択方法③：表示テキストで選択
+select.select_by_visible_text(YM)
+# YM = "202508"
+# select.select_by_value(YM)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH, "/html/body/form/table/tbody/tr[1]/td[2]/span/select")
+select = Select(dropdown)
+if FDD[0] == "0":
+    DD = FDD[1] + "日"
+else:
+    DD = FDD + "日"
+select.select_by_visible_text(DD)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH, "/html/body/form/table/tbody/tr[1]/td[3]/select")
+select = Select(dropdown)
+
+if len(FHH) == 1:
+    HH = "0" + FHH[0] + "時"
+else:
+    HH = FHH + "時"
+select.select_by_visible_text(HH)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH, "/html/body/form/table/tbody/tr[1]/td[4]/select")
+select = Select(dropdown)
+MM = Minute + "分"
+select.select_by_visible_text(MM)  # 表示されているテキストで選択
+
+
+#***************
+# To
+#***************
+# データの作成 要素の直接指定でクリック
+dropdown = driver.find_element(By.XPATH,'/html/body/form/table/tbody/tr[2]/td[1]/select')
+# Selectオブジェクトを生成
+select = Select(dropdown)
+
+if Month[0] == "0":
+    YM = Year + "年" + Month[1] + "月"
+else:
+    YM = Year + "年" + Month + "月"
+# 選択方法③：表示テキストで選択
+select.select_by_visible_text(YM)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH,'/html/body/form/table/tbody/tr[2]/td[2]/span/select')
+select = Select(dropdown)
+if Day[0] == "0":
+    DD = Day[1] + "日"
+else:
+    DD = Day + "日"
+select.select_by_visible_text(DD)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH,'/html/body/form/table/tbody/tr[2]/td[3]/select')
+select = Select(dropdown)
+if len(Hour) == 1:
+    HH = "0" + Hour[0] + "時"
+else:
+    HH = Hour + "時"
+select.select_by_visible_text(HH)  # 表示されているテキストで選択
+dropdown = driver.find_element(By.XPATH, "/html/body/form/table/tbody/tr[2]/td[4]/select")
+select = Select(dropdown)
+MM = Minute + "分"
+select.select_by_visible_text(MM)  # 表示されているテキストで選択
+
+driver.find_element(By.XPATH, '//*[@id="form1"]/table/tbody/tr[2]/td[5]/a/img').click()
 
 
 
 #*****************************************************
 
+
+
+
 # 画面を最大化
-driver.maximize_window()
-time.sleep(2)
+# driver.maximize_window()
+time.sleep(3)
 # スクリーンショットを保存
-driver.save_screenshot(FileName + ".png")
+# driver.save_screenshot(FileName + ".png")
+save_path = FileName + ".png"
+driver.save_screenshot(save_path)
+# print(f"スクショ保存: {save_path}")
+save_screenshot_and_zip(driver, FileName)
+
 # 画面を戻す
-driver.minimize_window()
+# driver.minimize_window()
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
-clat = "37.661679492823"
-clon = "138.888006215311"
-Year = "2025"
-Month = "09"
-Hour = "01"
-Minute = "10"
+
+# XRAINキャプチャ処理用の時刻を取得
+Year, Month, Hour, Minute = get_rireki_date(test_csv_row)
+
+# clat = "37.661679492823"
+# clon = "138.888006215311"
+# Year = "2025"
+# Month = "09"
+# Hour = "01"
+# Minute = "10"
 
 Rdtime = Year + "%2F" + Month + "%20" + Hour + "%3A" + Minute
 
@@ -189,28 +388,27 @@ URL = URL1 + clat + URL2 + clon + URL3 + Rdtime
 driver.get(URL)
 
 # 画面を最大化
-driver.maximize_window()
+# driver.maximize_window()
 time.sleep(1)
 # スクリーンショットを保存
-driver.save_screenshot(FileName + ".png")
+# driver.save_screenshot(FileName + ".png")
 
-# 既存の ZIP ファイル名(DateNO_screenshot.zip)
-zip_filename = f"{DateNO}_screenshot.zip"
+save_path = FileName + ".png"
+driver.save_screenshot(save_path)
+# print(f"スクショ保存: {save_path}")
+save_screenshot_and_zip(driver, FileName)
+
+
+# # 既存の ZIP ファイル名(DateNO_screenshot.zip)
+# zip_filename = f"{DateNO}_screenshot.zip"
 
 
 
 # 画面を戻す
-driver.minimize_window()
-
-
-
+# driver.minimize_window()
 
 time.sleep(1)
 
-
-
-
-
-
 # 終了
 driver.quit()
+
