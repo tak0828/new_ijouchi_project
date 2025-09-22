@@ -153,26 +153,6 @@ def toggle_watch(request):
                     return JsonResponse({"status": "no_data"})
 
 
-                # -----------------------attached_file.pyを実行-----------------------------------------------
-
-                attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
-               
-                try:
-                    # subprocess.run(["python", attched_file_path], check=True, cwd=settings.BASE_DIR) # cwdで作業ディレクトリを指定(プロジェクト直下で実行)
-                    subprocess.run(
-                            [sys.executable, attached_file_path],      # コンテナの Python を使う
-                            check=True,
-                            cwd=os.path.dirname(attached_file_path)    # /app/app をカレントディレクトリに
-                        )
-                    print("attached_file.py が正常に実行されました")
-                
-                except subprocess.CalledProcessError as e:  
-                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
-                    return JsonResponse({"status": "attached_file_error", "message": str(e)})
-                
-                return JsonResponse({"status": "started", "counts": len(csv_rows)})    
-                
-                # -----------------------attached_file.pyを実行-----------------------------------------------
 
                 # MariaDB接続（今回は193サーバーのIjouchiDBV6を使用）
                 conn = pymysql.connect(
@@ -219,6 +199,8 @@ def toggle_watch(request):
                     cursor.execute(sql2, params)
                     DateNo_results = cursor.fetchall()
                     DateNo_list = [DateNo_row["DateNo"] for DateNo_row in DateNo_results]
+
+
 
 
                     # "雨量"かつ"注意"かつ基準値超過の場合のみ処理
@@ -287,6 +269,45 @@ def toggle_watch(request):
 
                             DateNo_New = f"{date_str}-{DateNo_New_no}"
                             print("新規DateNo:", DateNo_New)
+
+
+                            # -----------------------attached_file.pyを実行-----------------------------------------------
+                            for test_csv_row in csv_rows:
+
+                                test_csv_row = test_csv_row.copy()
+
+                                # datetime を文字列に変換
+                                if isinstance(test_csv_row["観測日時"], datetime):
+                                    test_csv_row["観測日時"] = test_csv_row["観測日時"].strftime("%Y/%m/%d %H:%M")
+                                if isinstance(test_csv_row["1年前日時"], datetime):
+                                    test_csv_row["1年前日時"] = test_csv_row["1年前日時"].strftime("%Y/%m/%d %H:%M")
+
+                                # DateNo を追加
+                                test_csv_row["DateNo"] = DateNo_New
+
+                                # CSV行をJSON文字列に変換
+                                csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
+
+                                # attached_file.py のパス
+                                attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
+                            
+                                try:
+                                    # subprocess.run(["python", attched_file_path], check=True, cwd=settings.BASE_DIR) # cwdで作業ディレクトリを指定(プロジェクト直下で実行)
+                                    subprocess.run(
+                                            [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
+                                            check=True,
+                                            cwd=os.path.dirname(attached_file_path)    # /app/app をカレントディレクトリに
+                                        )
+                                    print("attached_file.py が正常に実行されました")
+                                
+                                except subprocess.CalledProcessError as e:  
+                                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
+                                    return JsonResponse({"status": "attached_file_error", "message": str(e)})
+                                
+                                return JsonResponse({"status": "started", "counts": len(csv_rows)})    
+                            
+                            # -----------------------attached_file.pyを実行-----------------------------------------------
+
 
                             # 次の MeisaiNo
                             next_seq = seq_dict.get(KansokujoCD, 1)
