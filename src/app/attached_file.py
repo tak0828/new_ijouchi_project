@@ -23,6 +23,7 @@ chrome_options.add_argument("--disable-gpu")        # GPU無効化
 chrome_options.add_argument("--remote-debugging-port=9222") # デバッグ用
 chrome_options.add_argument(f"--user-data-dir=/tmp/selenium_user_data_{os.getpid()}")  # ユニークなプロファイル
 chrome_options.add_argument("--window-size=1920,1500") # ウィンドウサイズ指定(ヘッドレスモードで必要)
+chrome_options.add_argument("--lang=ja-JP")  # 日本語対応
 
 # Chromeドライバーのパス（必要に応じて変更）
 driver = webdriver.Chrome(options=chrome_options)
@@ -211,14 +212,6 @@ driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
 
 
-# # テーブルを取得
-# table = driver.find_element(By.ID, "hyou")
-# # テーブル内の<tr>タグをすべて取得
-# rows = table.find_elements(By.TAG_NAME, "tr")
-# # 行数（インデックス数）
-# RowCntTr = len(rows)
-
-
 #レーダー累加Cバンドキャプチャ処理
 TempFileNo = "20"
 FileName2 = DateNO + "_" + TempFileNo
@@ -326,9 +319,6 @@ time.sleep(3)
 save_path = FileName2 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
-
-# 画面を戻す
-# driver.minimize_window()
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
 
