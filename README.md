@@ -1,0 +1,4 @@
+20250924更新
+
+添付ファイルパスのデータベース更新機能追加
+(DS_ChousaKihonのKanshiTempFile01~05まで）
