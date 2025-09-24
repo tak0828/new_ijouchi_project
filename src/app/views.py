@@ -309,12 +309,33 @@ def toggle_watch(request):
                                 attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
                             
                                 try:
-                                    subprocess.run(
+                                    # subprocess で attached_file.py を実行し、標準出力を取得
+                                    temp_result = subprocess.run(
                                             [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
                                             check=True,
-                                            cwd=os.path.dirname(attached_file_path)    # /app/app をカレントディレクトリに
+                                            cwd=os.path.dirname(attached_file_path),    # /app/app をカレントディレクトリに
+                                            capture_output=True,                    # stdout をキャプチャ
+                                            text=True,
+                                            encoding='utf-8'  # エンコーディングを指定
                                         )
+
                                     print("attached_file.py が正常に実行されました")
+                                    
+                                    # 標準出力を確認
+                                    stdout_lines = temp_result.stdout.strip().splitlines()
+                                    json_str = stdout_lines[-1]  # 最後の行だけ
+                                    output_json = json.loads(json_str)
+
+                                    # 標準出力からパスを取り出す
+                                    TempFilePath1 = output_json["TempFilePath1"]
+                                    TempFilePath2 = output_json["TempFilePath2"]
+                                    TempFilePath3 = output_json["TempFilePath3"]
+                                    TempFilePath4 = None
+                                    TempFilePath5 = None
+
+                                    
+
+                                    print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
                                 
                                 except subprocess.CalledProcessError as e:  
                                     print(f"attached_file.py の実行中にエラーが発生しました: {e}")
@@ -336,7 +357,8 @@ def toggle_watch(request):
                                                 "KakuninDate", "KakuninTime",
                                                 "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
                                                 "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
-                                                "Shubetsu09","HakkenHouhouCD", "KKShubetsuCD"],
+                                                "Shubetsu09","HakkenHouhouCD", "KKShubetsuCD",
+                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05"], #添付ファイルのカラム追加
                                     "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
                                             r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
                                             Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
@@ -352,7 +374,12 @@ def toggle_watch(request):
                                             0,  # ← 雨量確定で Shubetsu08は0固定
                                             0,  # ← 雨量確定で Shubetsu09は0固定
                                             4, # ← 新異常値検知検出システムで HakkenHouhouCDは4固定
-                                            Latest_row.get("KKShubetsuCD")
+                                            Latest_row.get("KKShubetsuCD"),
+                                            TempFilePath1 if TempFilePath1 else None, #ない場合はNULL挿入
+                                            TempFilePath2 if TempFilePath2 else None, #ない場合はNULL挿入
+                                            TempFilePath3 if TempFilePath3 else None, #ない場合はNULL挿入
+                                            TempFilePath4 if TempFilePath4 else None, #ない場合はNULL挿入
+                                            TempFilePath5 if TempFilePath5 else None, #ない場合はNULL挿入
                                             ],
                                 },
                                 "DS_ChousaMeisai": {

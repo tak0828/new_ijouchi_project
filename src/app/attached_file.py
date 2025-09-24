@@ -157,7 +157,7 @@ Year, Month, Day, Hour, Minute = get_rireki_date(test_csv_row)
 
 #水位グラフキャプチャ処理
 TempFileNo = "10"
-FileName = DateNO + "_" + TempFileNo
+FileName1 = DateNO + "_" + TempFileNo
 URL1 = "https://city.river.go.jp/kawabou/cityRainKobetu.do?init=init&obsrvId="
 URL2 = "&gamenId=02-0904&timeType=60&requestType=1"
 URL = URL1 + ObsrvId + URL2
@@ -206,7 +206,7 @@ driver.find_element(By.XPATH, '//*[@id="mainHeadDiv"]/div[3]/div/table/tbody/tr/
 
 time.sleep(3)
 # スクリーンショットを保存
-save_path = FileName + ".png"
+save_path = FileName1 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
 
@@ -221,7 +221,7 @@ save_screenshot_and_zip(driver, save_path)
 
 #レーダー累加Cバンドキャプチャ処理
 TempFileNo = "20"
-FileName = DateNO + "_" + TempFileNo
+FileName2 = DateNO + "_" + TempFileNo
 URL1 = "https://city.river.go.jp/kawabou/cityRadarRuika.do?init=init&areaCd="
 URL2 = "&gamenId=02-1802"
 URL = URL1 + str(ChihouCD) + URL2
@@ -323,7 +323,7 @@ driver.find_element(By.XPATH, '//*[@id="form1"]/table/tbody/tr[2]/td[5]/a/img').
 
 time.sleep(3)
 # スクリーンショットを保存
-save_path = FileName + ".png"
+save_path = FileName2 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
 
@@ -346,7 +346,7 @@ Rdtime = Year + "%2F" + Month + "%2F" + Day + "%20" + Hour + "%3A" + Minute
 
 
 TempFileNo = "30"
-FileName = DateNO + "_" + TempFileNo
+FileName3 = DateNO + "_" + TempFileNo
 URL1 = "https://www.river.go.jp/kawabou/pc/rd?zm=12&clat="
 URL2 = "&clon="
 URL3 ="&fld=0&mapType=0&viewGrpStg=0&viewRd=1&viewRW=1&viewRiver=1&viewPoint=1&ext=0&rdtype=xrain&rdnum=4&rdopa=50&rdint=5&rdtime="
@@ -355,7 +355,7 @@ driver.get(URL)
 
 time.sleep(1)
 
-save_path = FileName + ".png"
+save_path = FileName3 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
 
@@ -363,6 +363,44 @@ save_screenshot_and_zip(driver, save_path)
 
 time.sleep(1)
 
+# =============================
+# 出力パス生成処理
+# =============================
+
+# 保存ベースディレクトリ
+Temp_base_dir = os.path.join("Temp", "調査書", "監視者", DateNO)
+
+# ディレクトリを作成（存在しない場合のみ）
+os.makedirs(Temp_base_dir, exist_ok=True)
+
+# # "0829" のような月日を生成
+md_str = Month + Day   # "08" + "29" → "0829"
+
+# 拡張子なしのファイル名
+base_name_no_ext = f"{KansokuName}{md_str}"
+
+# FileName1, FileName2, FileName3 のパスを生成
+TempFilePath1 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_10.png")
+TempFilePath2 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_20.png")
+TempFilePath3 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_30.png")
+
+# print("生成ファイルパス:")
+print(TempFilePath1)
+print(TempFilePath2)
+print(TempFilePath3)
+
+# 添付ファイル生成のパスを標準出力へ
+temp_result_paths = {
+    "TempFilePath1": TempFilePath1,
+    "TempFilePath2": TempFilePath2,
+    "TempFilePath3": TempFilePath3,
+}
+print(json.dumps(temp_result_paths, ensure_ascii=False)) # JSON形式で出力
+
+# =============================
+
 # 終了
 driver.quit()
+
+
 
