@@ -65,6 +65,8 @@ def logout_view(request):
 @login_required
 @require_POST
 @csrf_exempt
+
+
 def toggle_watch(request):
     """CSV監視の開始・停止を切り替え"""
     try:
@@ -84,16 +86,19 @@ def toggle_watch(request):
             # ファイル名から種別、警戒レベル、期間を取得
             file_name = os.path.basename(csv_file_path).replace(".csv", "")  # '雨量_注意_新潟デモ'
             file_parts = file_name.split("_")
+            global csv_filename
+            csv_filename = file_name
 
             Shubetsu_level = file_parts[0] if len(file_parts) > 0 else None  # 種別
             Keikai_level = file_parts[1] if len(file_parts) > 1 else None    # 警戒レベル
-
+            j = 0
             # CSV読み込み処理
             try:
                 csv_rows = []
                 with open(csv_file_path, encoding="cp932") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
+                        j = j + 1    
                         Dt_str = row.get("観測日時")
                         Cd2_str = row.get("統一ID")
                         Kessoku_str = row.get("欠測・未受信")
@@ -182,6 +187,7 @@ def toggle_watch(request):
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
                 seq_dict = {}  # 観測所ごとの連番保持用辞書
+                h = 0
                 for r in csv_rows:
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
@@ -207,6 +213,15 @@ def toggle_watch(request):
                         # 取得した DateNo で DS_ChousaKihonレコードを取得(HasseiJoukyouCD='845108' の最新レコード1件だけ取得)
                         DS_ChousaKihon_results = []
 
+                        # TempFile_results = []
+                        rows, cols = j, 11  
+                        TempFile_results = [["0" for _ in range(cols)] for _ in range(rows)]
+
+                        # TempFile_results = [[0]*11]*K  --- TempFile_results[0][K]=DateNo  TempFile_results[1-10][K]=添付ファイル---
+                        # TempFile_results = [****-001, 0,0,0,0,0,0,0,0,0,0
+                        #                     ****-002, 0,0,0,0,0,0,0,0,0,0]
+                        
+                        
                         for DateNo in DateNo_list:
                             sql3 = """
                                 SELECT *
@@ -265,9 +280,14 @@ def toggle_watch(request):
                             else:
                                 DateNo_New_no = "001"
 
+                            TempFile_results[0][h] = f"{date_str}-{DateNo_New_no}"  # 1列目に DateNo をセット
+                            h = h + 1
+
                             DateNo_New = f"{date_str}-{DateNo_New_no}"
                             print("新規DateNo:", DateNo_New)
 
+                            # DateNoをリストに追加
+                            DateNo_list.append(DateNo_New)
 
                             # -----------------------attached_file.pyを実行-----------------------------------------------
                             for test_csv_row in csv_rows:
@@ -300,14 +320,15 @@ def toggle_watch(request):
 
                                 # CSV行をJSON文字列に変換
                                 csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
-
+                                data = {"TempFile_results": TempFile_results}
+                                TempFile_results = json.dumps(data, ensure_ascii=False)
                                 # attached_file.py のパス
                                 attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
                             
                                 try:
                                     # subprocess で attached_file.py を実行し、標準出力を取得
                                     temp_result = subprocess.run(
-                                            [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
+                                            [sys.executable, attached_file_path, csv_row_json, TempFile_results, csv_filename],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
                                             check=True,
                                             cwd=os.path.dirname(attached_file_path),    # /app/app をカレントディレクトリに
                                             capture_output=True,                    # stdout をキャプチャ
@@ -348,6 +369,7 @@ def toggle_watch(request):
                             # メール件名・本文に CSVファイル名を追加
                             csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
 
+
                             try:
                                 # subprocess で sendmail.py を実行する
                                 sendmail_result = subprocess.run(
@@ -372,13 +394,13 @@ def toggle_watch(request):
                             print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
 
                             # # メール件名・本文に CSVファイル名を追加
-                            # csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
+                            csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
 
                             try:
                                 # subprocess で fileupload.py を実行する
                                 fileupload_result = subprocess.run(
                                         [sys.executable, fileupload_path, "--csv_name", csv_file_name,
-                                        "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
+                                        "--excel_data", csv_file_name + "更新結果", csv_row_json, TempFile_results],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
                                         check=True,
                                         cwd=os.path.dirname(fileupload_path),    # /app/app をカレントディレクトリに
                                         capture_output=True,                    # stdout をキャプチャ

@@ -13,6 +13,20 @@ import os
 import time
 import configparser # iniファイル読み込み
 import zipfile
+import argparse
+
+# parser = argparse.ArgumentParser()
+# parser.add_argument("csv_row_json")  # 第1引数（リストをJSON文字列で渡す）
+# parser.add_argument("tempfile_results_json")  # 第2引数（リストをJSON文字列で渡す）
+
+# args = parser.parse_args()
+
+# # JSON文字列をPythonのリストに変換
+# tempfile_results = json.loads(args.tempfile_results_json)
+
+# print(f"受け取ったリスト: {tempfile_results}")
+
+
 
 
 chrome_options = Options()
@@ -97,17 +111,53 @@ def get_rireki_date(test_csv_row):
 
 def save_screenshot_and_zip(driver, file_name_png):
     png_dir = "/app/media/png"
-    zip_dir = "/app/media/zip"
     os.makedirs(png_dir, exist_ok=True)
-    os.makedirs(zip_dir, exist_ok=True)
+    # os.makedirs(zip_dir, exist_ok=True)
 
     png_path = os.path.join(png_dir, os.path.basename(file_name_png))
     driver.save_screenshot(png_path)
     print(f"スクショ保存: {png_path}")
-    
-    zip_path = os.path.join(zip_dir, os.path.basename(file_name_png).replace(".png", ".zip"))
-    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(png_path, arcname=os.path.basename(png_path))
+
+def save_screenshot_and_zip2(driver, TempFile_results, csv_filename): 
+    zipfileList = []
+    # TempFile_results = json.loads(TempFile_results)
+    print(TempFile_results)
+    for i, row in enumerate(TempFile_results):
+        for j, value in enumerate(row):
+            zipfileName = TempFile_results[i][j]
+            print(f"Type of value at [{i}][{j}]: {type(zipfileName)}")
+            if isinstance(value, str) and value.endswith(".png"):
+                zipfileList.append(TempFile_results[i][j])
+
+                # png_path = os.path.join("/app/media/png", os.path.basename(TempFile_results[i][j]))
+                # driver.save_screenshot(png_path)
+                # print(f"スクショ保存: {png_path}")
+    # ZIP化
+    zip_dir = "/app/media/zip"
+    png_dir = "/app/media/png/"
+    os.makedirs(zip_dir, exist_ok=True)
+    # zipfileName = ""
+    # with zipfile.ZipFile(csv_filename + ".zip", "w") as zipf:
+    #     for j in zipfileList:
+    #         zipfileName = zipfileList[j]
+    #         pngDir = png_dir + zipfileName
+    #         zipf.write(pngDir)  # ファイルを追加
+
+    zip_path = os.path.join(zip_dir, csv_filename + ".zip")
+    with zipfile.ZipFile(zip_path, "w") as zipf:
+        for filename in zipfileList:
+            png_path = os.path.join(png_dir, filename)
+            if os.path.exists(png_path):  # ファイルが存在するか確認
+                zipf.write(png_path, arcname=filename)  # arcnameでZIP内の名前を指定
+            else:
+                print(f"ファイルが見つかりません: {png_path}")
+
+
+
+
+    # zip_path = os.path.join(zip_dir, os.path.basename(file_name_png).replace(".png", ".zip"))
+    # with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+    #     zipf.write(png_path, arcname=os.path.basename(png_path))
     print(f"ZIP作成完了: {zip_path}")
 
 
@@ -158,6 +208,19 @@ ChihouCD = test_csv_row.get("地方CD") # View 側(MS_Kansokujoの地方CD) を�
 # キャプチャ処理用の時刻を取得
 Year, Month, Day, Hour, Minute = get_rireki_date(test_csv_row)
 
+# parsed = json.loads(TempFile_results)
+parsed = json.loads(sys.argv[2])
+TempFile_results = parsed.get("TempFile_results") 
+csv_filename = sys.argv[3]
+# csv_filename = csv_filename.get("csv_filename")
+
+h = 0
+for i in range(len(TempFile_results)):
+    print(i)
+    print(TempFile_results[i][0])
+    if TempFile_results[i][0] == DateNO:  # 2列目以降を初期化
+        h = i
+        break
 
 
 #水位グラフキャプチャ処理
@@ -168,6 +231,7 @@ URL2 = "&gamenId=02-0904&timeType=60&requestType=1"
 URL = URL1 + ObsrvId + URL2
 
 driver.get(URL)
+
 
 #*****************************************************
 #指定時刻を表示する処理
@@ -214,6 +278,10 @@ time.sleep(3)
 save_path = FileName1 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
+
+TempFile_results[h][1] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
+
+
 
 
 #レーダー累加Cバンドキャプチャ処理
@@ -323,6 +391,8 @@ time.sleep(3)
 save_path = FileName2 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
+TempFile_results[h][2] = FileName2 + ".png"
+
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
 
@@ -352,7 +422,11 @@ time.sleep(1)
 save_path = FileName3 + ".png"
 driver.save_screenshot(save_path)
 save_screenshot_and_zip(driver, save_path)
+TempFile_results[h][3] = FileName3 + ".png"
 
+print(TempFile_results)
+
+save_screenshot_and_zip2(driver, TempFile_results, csv_filename)
 
 
 time.sleep(1)
@@ -391,7 +465,20 @@ temp_result_paths = {
 }
 print(json.dumps(temp_result_paths, ensure_ascii=False)) # JSON形式で出力
 
-# =============================
+# # =============================
+
+# # =============================
+# # PNG をまとめて ZIP にする
+# # =============================
+# all_png_files = [TempFilePath1, TempFilePath2, TempFilePath3]
+# zip_file_path = os.path.join(Temp_base_dir, f"{KansokuName}{md_str}.zip")
+
+# with zipfile.ZipFile(zip_file_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+#     for png_file in all_png_files:
+#         if os.path.exists(png_file):
+#             zipf.write(png_file, arcname=os.path.basename(png_file))
+
+# print(f"まとめて ZIP 作成完了: {zip_file_path}")
 
 # 終了
 driver.quit()

@@ -5,6 +5,9 @@ import configparser
 import paramiko
 from pathlib import Path
 
+parsed = json.loads(sys.argv[2])
+TempFile_results = parsed.get("TempFile_results") 
+
 
 # -------------------------------
 # 引数受け取り(CSVファイル名 + Excel情報)
@@ -53,6 +56,14 @@ HostName = ini['upload_info']['Host_Server']
 UserName = ini['upload_info']['Host_User']
 PassWD = ini['upload_info']['Host_Pass']
 
+
+h = 0
+for i in range(len(TempFile_results)):
+    print(i)
+    print(TempFile_results[i][0])
+    if TempFile_results[i][0] == DateNO:  # 2列目以降を初期化
+        h = i
+        break
 
 
 # 監視者のPath

@@ -164,7 +164,7 @@ def send_mail():
         #ここまで************************************************
           
         #(3) SMTPクライアントインスタンスを作成する
-        servSMTP='smtp.office365.com'
+        servSMTP='mail.biglobe.ne.jp' #SMTPサーバー
         portNo=('starttls',587) #通信方式、ポート番号
 
         smtp = smtplib.SMTP(servSMTP, portNo[1])
