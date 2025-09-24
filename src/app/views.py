@@ -270,72 +270,72 @@ def toggle_watch(request):
 
 
                             # -----------------------attached_file.pyを実行-----------------------------------------------
-                            # for test_csv_row in csv_rows:
+                            for test_csv_row in csv_rows:
 
-                            #     test_csv_row = test_csv_row.copy()
+                                test_csv_row = test_csv_row.copy()
 
-                            #     # datetime を文字列に変換
-                            #     if isinstance(test_csv_row["観測日時"], datetime):
-                            #         test_csv_row["観測日時"] = test_csv_row["観測日時"].strftime("%Y/%m/%d %H:%M")
-                            #     if isinstance(test_csv_row["1年前日時"], datetime):
-                            #         test_csv_row["1年前日時"] = test_csv_row["1年前日時"].strftime("%Y/%m/%d %H:%M")
+                                # datetime を文字列に変換
+                                if isinstance(test_csv_row["観測日時"], datetime):
+                                    test_csv_row["観測日時"] = test_csv_row["観測日時"].strftime("%Y/%m/%d %H:%M")
+                                if isinstance(test_csv_row["1年前日時"], datetime):
+                                    test_csv_row["1年前日時"] = test_csv_row["1年前日時"].strftime("%Y/%m/%d %H:%M")
 
-                            #     # ディレクトリ判定になるため　/ を - に置換
-                            #     # 1.DateNo を追加※日付部分を置換（YYYY/MM/DD → YYYYMMDD）
-                            #     date_part = DateNo_New.split("-")[0].replace("/", "")   # "20250629"
+                                # ディレクトリ判定になるため　/ を - に置換
+                                # 1.DateNo を追加※日付部分を置換（YYYY/MM/DD → YYYYMMDD）
+                                date_part = DateNo_New.split("-")[0].replace("/", "")   # "20250629"
 
-                            #     # 2. 連番部分をゼロパディング
-                            #     serial_part = DateNo_New.split("-")[1].zfill(3)         # "003"
+                                # 2. 連番部分をゼロパディング
+                                serial_part = DateNo_New.split("-")[1].zfill(3)         # "003"
 
-                            #     # 3. 結合
-                            #     DateNo_CSV = f"{date_part}-{serial_part}"         # "20250629-003"  
-                            #     test_csv_row["DateNo"] = DateNo_CSV
+                                # 3. 結合
+                                DateNo_CSV = f"{date_part}-{serial_part}"         # "20250629-003"  
+                                test_csv_row["DateNo"] = DateNo_CSV
 
-                            #     # 緯度経度を追加
-                            #     test_csv_row["緯度"] = Ido
-                            #     test_csv_row["経度"] = Keido
+                                # 緯度経度を追加
+                                test_csv_row["緯度"] = Ido
+                                test_csv_row["経度"] = Keido
                                 
-                            #     # CenterCDを追加
-                            #     test_csv_row["地方CD"] = CenterCD
+                                # CenterCDを追加
+                                test_csv_row["地方CD"] = CenterCD
 
-                            #     # CSV行をJSON文字列に変換
-                            #     csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
+                                # CSV行をJSON文字列に変換
+                                csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
 
-                            #     # attached_file.py のパス
-                            #     attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
+                                # attached_file.py のパス
+                                attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
                             
-                            #     try:
-                            #         # subprocess で attached_file.py を実行し、標準出力を取得
-                            #         temp_result = subprocess.run(
-                            #                 [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
-                            #                 check=True,
-                            #                 cwd=os.path.dirname(attached_file_path),    # /app/app をカレントディレクトリに
-                            #                 capture_output=True,                    # stdout をキャプチャ
-                            #                 text=True,
-                            #                 encoding='utf-8'  # エンコーディングを指定
-                            #             )
+                                try:
+                                    # subprocess で attached_file.py を実行し、標準出力を取得
+                                    temp_result = subprocess.run(
+                                            [sys.executable, attached_file_path, csv_row_json],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
+                                            check=True,
+                                            cwd=os.path.dirname(attached_file_path),    # /app/app をカレントディレクトリに
+                                            capture_output=True,                    # stdout をキャプチャ
+                                            text=True,
+                                            encoding='utf-8'  # エンコーディングを指定
+                                        )
 
-                            #         print("attached_file.py が正常に実行されました")
+                                    print("attached_file.py が正常に実行されました")
                                     
-                            #         # 標準出力を確認
-                            #         stdout_lines = temp_result.stdout.strip().splitlines()
-                            #         json_str = stdout_lines[-1]  # 最後の行だけ
-                            #         output_json = json.loads(json_str)
+                                    # 標準出力を確認
+                                    stdout_lines = temp_result.stdout.strip().splitlines()
+                                    json_str = stdout_lines[-1]  # 最後の行だけ
+                                    output_json = json.loads(json_str)
 
-                            #         # 標準出力からパスを取り出す
-                            #         TempFilePath1 = output_json["TempFilePath1"]
-                            #         TempFilePath2 = output_json["TempFilePath2"]
-                            #         TempFilePath3 = output_json["TempFilePath3"]
-                            #         TempFilePath4 = None
-                            #         TempFilePath5 = None
+                                    # 標準出力からパスを取り出す
+                                    TempFilePath1 = output_json["TempFilePath1"]
+                                    TempFilePath2 = output_json["TempFilePath2"]
+                                    TempFilePath3 = output_json["TempFilePath3"]
+                                    TempFilePath4 = None
+                                    TempFilePath5 = None
 
                                     
 
-                            #         print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
+                                    print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
                                 
-                            #     except subprocess.CalledProcessError as e:  
-                            #         print(f"attached_file.py の実行中にエラーが発生しました: {e}")
-                            #         return JsonResponse({"status": "attached_file_error", "message": str(e)})
+                                except subprocess.CalledProcessError as e:  
+                                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
+                                    return JsonResponse({"status": "attached_file_error", "message": str(e)})
                                 
                             
                             # -----------------------attached_file.pyを実行-----------------------------------------------
@@ -345,10 +345,14 @@ def toggle_watch(request):
                             SendMail_path = os.path.join(settings.BASE_DIR, "app", "sendmail.py")
                             print(f"sendmail.py のパス: {SendMail_path}")  # 確認用
 
+                            # メール件名・本文に CSVファイル名を追加
+                            csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
+
                             try:
                                 # subprocess で sendmail.py を実行する
                                 sendmail_result = subprocess.run(
-                                        [sys.executable, SendMail_path],      # コンテナの Python を使う
+                                        [sys.executable, SendMail_path, "--csv_name", csv_file_name,
+                                        "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
                                         check=True,
                                         cwd=os.path.dirname(SendMail_path),    # /app/app をカレントディレクトリに
                                         capture_output=True,                    # stdout をキャプチャ
@@ -361,6 +365,35 @@ def toggle_watch(request):
                             except subprocess.CalledProcessError as e:  
                                 print(f"sendmail.py の実行中にエラーが発生しました: {e}")
                             # -----------------------sendmail.pyを実行----------------------------------------------------
+                           
+                            # -----------------------fileupload.pyを実行----------------------------------------------------
+                            # fileupload.py のパス
+                            fileupload_path = os.path.join(settings.BASE_DIR, "app", "fileupload.py")
+                            print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
+
+                            # # メール件名・本文に CSVファイル名を追加
+                            # csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
+
+                            try:
+                                # subprocess で fileupload.py を実行する
+                                fileupload_result = subprocess.run(
+                                        [sys.executable, fileupload_path, "--csv_name", csv_file_name,
+                                        "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
+                                        check=True,
+                                        cwd=os.path.dirname(fileupload_path),    # /app/app をカレントディレクトリに
+                                        capture_output=True,                    # stdout をキャプチャ
+                                        text=True,
+                                        encoding='utf-8'  # エンコーディングを指定
+                                    )
+
+                                print("fileupload.py が正常に実行されました")
+                                
+                            except subprocess.CalledProcessError as e:  
+                                print(f"fileupload.py の実行中にエラーが発生しました: {e}")
+
+
+
+                            # -----------------------fileupload.pyを実行----------------------------------------------------
 
                             # 次の MeisaiNo
                             next_seq = seq_dict.get(KansokujoCD, 1)

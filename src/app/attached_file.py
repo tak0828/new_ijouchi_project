@@ -94,17 +94,21 @@ def get_rireki_date(test_csv_row):
 
     return Year, Month, Day, Hour, Minute
 
-# スクリーンショットを保存＆ZIP化（両方残す）
+
 def save_screenshot_and_zip(driver, file_name_png):
-    # PNG保存
-    driver.save_screenshot(file_name_png)
-    print(f"スクショ保存: {file_name_png}")
+    png_dir = "/app/media/png"
+    zip_dir = "/app/media/zip"
+    os.makedirs(png_dir, exist_ok=True)
+    os.makedirs(zip_dir, exist_ok=True)
+
+    png_path = os.path.join(png_dir, os.path.basename(file_name_png))
+    driver.save_screenshot(png_path)
+    print(f"スクショ保存: {png_path}")
     
-    # ZIP化
-    zip_filename = file_name_png.replace(".png", ".zip")
-    with zipfile.ZipFile(zip_filename, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(file_name_png)
-    print(f"ZIP作成完了: {zip_filename}")
+    zip_path = os.path.join(zip_dir, os.path.basename(file_name_png).replace(".png", ".zip"))
+    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write(png_path, arcname=os.path.basename(png_path))
+    print(f"ZIP作成完了: {zip_path}")
 
 
 #リストから代入すること
@@ -360,8 +364,8 @@ time.sleep(1)
 # 保存ベースディレクトリ
 Temp_base_dir = os.path.join("Temp", "調査書", "監視者", DateNO)
 
-# ディレクトリを作成（存在しない場合のみ）
-os.makedirs(Temp_base_dir, exist_ok=True)
+# # ディレクトリを作成（存在しない場合のみ）
+# os.makedirs(Temp_base_dir, exist_ok=True)
 
 # # "0829" のような月日を生成
 md_str = Month + Day   # "08" + "29" → "0829"
