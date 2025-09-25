@@ -393,20 +393,21 @@ def toggle_watch(request):
                             fileupload_path = os.path.join(settings.BASE_DIR, "app", "fileupload.py")
                             print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
 
-                            # # メール件名・本文に CSVファイル名を追加
                             csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
 
                             try:
-                                # subprocess で fileupload.py を実行する
                                 fileupload_result = subprocess.run(
-                                        [sys.executable, fileupload_path, "--csv_name", csv_file_name,
-                                        "--excel_data", csv_file_name + "更新結果", csv_row_json, TempFile_results],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
-                                        check=True,
-                                        cwd=os.path.dirname(fileupload_path),    # /app/app をカレントディレクトリに
-                                        capture_output=True,                    # stdout をキャプチャ
-                                        text=True,
-                                        encoding='utf-8'  # エンコーディングを指定
-                                    )
+                                    [sys.executable, fileupload_path,
+                                    "--csv_name", csv_file_name,
+                                    "--excel_data", csv_file_name + "更新結果",
+                                    json.dumps(csv_row_json, ensure_ascii=False),
+                                    json.dumps(TempFile_results, ensure_ascii=False)],
+                                    check=True,
+                                    cwd=os.path.dirname(fileupload_path),
+                                    capture_output=True,
+                                    text=True,
+                                    encoding='utf-8'
+                                )
 
                                 print("fileupload.py が正常に実行されました")
                                 

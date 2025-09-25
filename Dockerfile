@@ -1,5 +1,5 @@
 # ベースイメージ
-FROM python:3.9-slim
+FROM python:3.9-slim-bullseye
 
 ENV TZ=Asia/Tokyo
 WORKDIR /app

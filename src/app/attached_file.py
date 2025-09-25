@@ -128,21 +128,11 @@ def save_screenshot_and_zip2(driver, TempFile_results, csv_filename):
             print(f"Type of value at [{i}][{j}]: {type(zipfileName)}")
             if isinstance(value, str) and value.endswith(".png"):
                 zipfileList.append(TempFile_results[i][j])
-
-                # png_path = os.path.join("/app/media/png", os.path.basename(TempFile_results[i][j]))
-                # driver.save_screenshot(png_path)
-                # print(f"スクショ保存: {png_path}")
     # ZIP化
     zip_dir = "/app/media/zip"
     png_dir = "/app/media/png/"
     os.makedirs(zip_dir, exist_ok=True)
-    # zipfileName = ""
-    # with zipfile.ZipFile(csv_filename + ".zip", "w") as zipf:
-    #     for j in zipfileList:
-    #         zipfileName = zipfileList[j]
-    #         pngDir = png_dir + zipfileName
-    #         zipf.write(pngDir)  # ファイルを追加
-
+    
     zip_path = os.path.join(zip_dir, csv_filename + ".zip")
     with zipfile.ZipFile(zip_path, "w") as zipf:
         for filename in zipfileList:
