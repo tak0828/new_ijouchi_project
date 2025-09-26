@@ -120,6 +120,9 @@ def toggle_watch(request):
                             elif Kessoku_val == "":  # 空白セル → 基準値超過
                                 is_exceed = True
 
+                        # 近隣観測所フラグ
+                        is_kinbou = True
+
                         csv_rows.append({
                             "統一ID": Cd2_str.strip(),
                             "観測日時": csv_dt,
@@ -149,7 +152,8 @@ def toggle_watch(request):
                             "上限値": row.get("上限値"),
                             "欠測・未受信": is_missing,
                             "基準値超過": is_exceed,
-                            "連続する異常値": row.get("連続する異常値")
+                            "連続する異常値": row.get("連続する異常値"),
+                            "近傍観測所フラグ": is_kinbou # 近傍観測所フラグを追加(初期値False)
                         })
 
 
@@ -170,7 +174,7 @@ def toggle_watch(request):
 
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-                # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)
+                # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)(近傍観測所のID情報も取得20250926)
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
                 sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido, CenterCD FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
@@ -318,6 +322,51 @@ def toggle_watch(request):
                                 # CenterCDを追加
                                 test_csv_row["地方CD"] = CenterCD
 
+                                if is_kinbou:
+                                    # 近傍観測所1～3を順に追加
+                                    kinbou_flags = {}  # 近傍観測所フラグ初期化
+                                    for i in range(1, 4):
+                                        kinbou_key = f"近傍観測所{i}のID"
+                                        kinbou_cd2 = test_csv_row.get(kinbou_key)
+                                        # 近傍観測所フラグをDBに統一ID(KansokujoCD2登録があるものを判別するため)
+                                        kinbou_flags[i] = False  # 初期値False
+
+                                        # IDが空白の場合はスキップ
+                                        if not kinbou_cd2:
+                                            continue
+
+                                        # DBから近傍観測所の情報を取得
+                                        sql = """
+                                            SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD,
+                                                KansokujoCD2, Ido, Keido, CenterCD
+                                            FROM MS_Kansokujo
+                                            WHERE KansokujoCD2 = %s
+                                        """
+                                        cursor.execute(sql, [kinbou_cd2])
+                                        kinbou_row = cursor.fetchone()
+                                        if not kinbou_row:
+                                            print(f"近傍観測所{i}:{kinbou_cd2} は MS_Kansokujo に存在しません")
+                                            continue
+
+                                        # # 近傍観測所情報を追加
+                                        # test_csv_row[f"近傍観測所{i}_KansokujoCD"] = kinbou_row["KansokujoCD"]
+                                        # test_csv_row[f"近傍観測所{i}_ShubetsuCD"] = kinbou_row["ShubetsuCD"]
+                                        # test_csv_row[f"近傍観測所{i}_KasenCD"] = kinbou_row["KasenCD"]
+                                        # test_csv_row[f"近傍観測所{i}_KenCD"] = kinbou_row["KenCD"]
+                                        # test_csv_row[f"近傍観測所{i}_JimushoCD"] = kinbou_row["JimushoCD"]
+                                        # test_csv_row[f"近傍観測所{i}_SuikeiCD"] = kinbou_row["SuikeiCD"]
+                                        # test_csv_row[f"近傍観測所{i}_統一ID"] = kinbou_row["KansokujoCD2"]
+                                        # test_csv_row[f"近傍観測所{i}_緯度"] = kinbou_row["Ido"]
+                                        # test_csv_row[f"近傍観測所{i}_経度"] = kinbou_row["Keido"]
+                                        # test_csv_row[f"近傍観測所{i}_地方CD"] = kinbou_row["CenterCD"]
+                                        
+                                        # 近傍観測所フラグをTrueに設定
+                                        kinbou_flags[i] = True
+                                        test_csv_row[f"近傍観測所{i}フラグ"] = True
+                                        # 既存の test_csv_row の後ろに追加
+                                        print(test_csv_row)
+                                        print(f"近傍観測所 {kinbou_cd2} の情報を追加しました")
+
                                 # CSV行をJSON文字列に変換
                                 csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
                                 data = {"TempFile_results": TempFile_results}
@@ -431,7 +480,8 @@ def toggle_watch(request):
                                                 "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
                                                 "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
                                                 "Shubetsu09","HakkenHouhouCD", "KKShubetsuCD",
-                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05"], #添付ファイルのカラム追加
+                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05", #添付ファイルのカラム追加
+                                                "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"], #足りないカラムを追加
                                     "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
                                             r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
                                             Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
@@ -453,12 +503,23 @@ def toggle_watch(request):
                                             TempFilePath3 if TempFilePath3 else None, #ない場合はNULL挿入
                                             TempFilePath4 if TempFilePath4 else None, #ない場合はNULL挿入
                                             TempFilePath5 if TempFilePath5 else None, #ない場合はNULL挿入
+                                            next_seq, # SeqNo
+                                            test_csv_row.get(), #StartDate
+                                            #StartTime
+                                            #CreateTime
+                                            #UpdateTime
+                                            1, #FormatType(0:旧フォーマット、1:新フォーマット)
+                                            Latest_row.get("KenCD"), #KenCD
                                             ],
                                 },
                                 "DS_ChousaMeisai": {
-                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD"],
+                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD"
+                                                "CreateTime", "UpdateTime", "DelFlg"], #足りないカラムを追加
                                     "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
-                                              JimushoCD, KasenCD, KenCD, SuikeiCD],  
+                                              JimushoCD, KasenCD, KenCD, SuikeiCD
+                                              #CreateTime
+                                              #UpdateTime
+                                              0,],  
                                 },
                                 "DS_ChousaIjouchiSuiteiGenin": {
                                     "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn"],
