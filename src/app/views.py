@@ -127,6 +127,7 @@ def toggle_watch(request):
                             "統一ID": Cd2_str.strip(),
                             "観測日時": csv_dt,
                             "1年前日時": year_ago,
+                            # "開始日時": start_dt,
                             "項目種別": row.get("項目種別"),
                             "水水ID": row.get("水水ID"),
                             "観測所名": row.get("観測所名"),
@@ -174,7 +175,7 @@ def toggle_watch(request):
 
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-                # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)(近傍観測所のID情報も取得20250926)
+                # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)(近傍観測所のID情報も取得20250926)(JimushoCDがJimushoCD2ではなくIDなのでMS_JimushoからJimushoCDを取得するように変更20250929)
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
                 sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido, CenterCD FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
@@ -185,8 +186,23 @@ def toggle_watch(request):
                     conn.close()
                     return JsonResponse({"status": "no_ms_record"})
 
+                # 事務所CDがJimushoCD2ではなくIDなのでMS_JimushoからJimushoCDを取得するように変更20250929
+                JimushoID_list = [r["JimushoCD"] for r in MS_Kansokujo_results]
+                Jimusho_placeholders = ','.join(['%s'] * len(JimushoID_list))
+                sql_jimusho = f"""
+                    SELECT id, JimushoCD2
+                    FROM MS_Jimusho
+                    WHERE id IN ({Jimusho_placeholders})
+                    """
+                cursor.execute(sql_jimusho, JimushoID_list)
+                MS_Jimusho_results = cursor.fetchall()
+
+                # 事務所CDを辞書化: id → JimushoCD2
+                MS_Jimusho_dict = {r["id"]: r["JimushoCD2"] for r in MS_Jimusho_results}
+
+
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
-                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], r["JimushoCD"], r["SuikeiCD"], r["Ido"], r["Keido"], r["CenterCD"] ) for r in MS_Kansokujo_results}
+                MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], MS_Jimusho_dict.get(r["JimushoCD"]), r["SuikeiCD"], r["Ido"], r["Keido"], r["CenterCD"] ) for r in MS_Kansokujo_results}
 
                 # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
                 DS_ChousaKihon_counts = []
@@ -196,7 +212,7 @@ def toggle_watch(request):
                     cd2 = r["統一ID"]
                     if cd2 not in MS_Kansokujo_dict:
                         continue
-                    KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, Ido, Keido, CenterCD = MS_Kansokujo_dict[cd2]
+                    KansokujoCD, ShubetsuCD, KasenCD, KenCD, JimushoCD, SuikeiCD, Ido, Keido, CenterCD = MS_Kansokujo_dict[cd2]
                     
                     sql2 = """
                         SELECT DateNo
@@ -393,11 +409,13 @@ def toggle_watch(request):
                                     output_json = json.loads(json_str)
 
                                     # 標準出力からパスを取り出す
-                                    TempFilePath1 = output_json["TempFilePath1"]
-                                    TempFilePath2 = output_json["TempFilePath2"]
-                                    TempFilePath3 = output_json["TempFilePath3"]
-                                    TempFilePath4 = None
-                                    TempFilePath5 = None
+                                    TempFilePath1 = output_json["TempFilePath1"] or ''
+                                    TempFilePath2 = output_json["TempFilePath2"] or ''
+                                    TempFilePath3 = output_json["TempFilePath3"] or ''
+                                    TempFilePath4 = ''
+                                    TempFilePath5 = ''
+                                    # TempFilePath4 = output_json["TempFilePath4"] or ''
+                                    # TempFilePath5 = output_json["TempFilePath5"] or ''
 
                                     
 
@@ -471,6 +489,12 @@ def toggle_watch(request):
                             next_seq = seq_dict.get(KansokujoCD, 1)
                             seq_dict[KansokujoCD] = next_seq + 1
 
+                            # CreateTime, UpdateTime は現在日時で作成
+                            create_now = datetime.now()
+                            create_time = create_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(create_now.microsecond/1000):03d}"
+                            update_now = datetime.now()
+                            update_time = update_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(update_now.microsecond/1000):03d}"
+
 
                             # 挿入データまとめ
                             Chousasho_insert_data = {
@@ -479,7 +503,7 @@ def toggle_watch(request):
                                                 "KakuninDate", "KakuninTime",
                                                 "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
                                                 "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
-                                                "Shubetsu09","HakkenHouhouCD", "KKShubetsuCD",
+                                                "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
                                                 "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05", #添付ファイルのカラム追加
                                                 "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"], #足りないカラムを追加
                                     "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
@@ -496,41 +520,43 @@ def toggle_watch(request):
                                             0,  # ← 雨量確定で Shubetsu07は0固定
                                             0,  # ← 雨量確定で Shubetsu08は0固定
                                             0,  # ← 雨量確定で Shubetsu09は0固定
+                                            '', #  発生経緯は空白固定
                                             4, # ← 新異常値検知検出システムで HakkenHouhouCDは4固定
                                             Latest_row.get("KKShubetsuCD"),
-                                            TempFilePath1 if TempFilePath1 else None, #ない場合はNULL挿入
-                                            TempFilePath2 if TempFilePath2 else None, #ない場合はNULL挿入
-                                            TempFilePath3 if TempFilePath3 else None, #ない場合はNULL挿入
-                                            TempFilePath4 if TempFilePath4 else None, #ない場合はNULL挿入
-                                            TempFilePath5 if TempFilePath5 else None, #ない場合はNULL挿入
+                                            TempFilePath1 if TempFilePath1 else '', #ない場合は''挿入
+                                            TempFilePath2 if TempFilePath2 else '', #ない場合は''挿入
+                                            TempFilePath3 if TempFilePath3 else '', #ない場合は''挿入
+                                            TempFilePath4 if TempFilePath4 else '', #ない場合は''挿入
+                                            TempFilePath5 if TempFilePath5 else '', #ない場合は''挿入
                                             next_seq, # SeqNo
-                                            test_csv_row.get(), #StartDate
-                                            #StartTime
-                                            #CreateTime
-                                            #UpdateTime
+                                            r["観測日時"].strftime("%Y-%m-%d"), #StartDate
+                                            r["観測日時"].strftime("%H:%M"), #StartTime
+                                            create_time,#CreateTime
+                                            update_time,#UpdateTime
                                             1, #FormatType(0:旧フォーマット、1:新フォーマット)
                                             Latest_row.get("KenCD"), #KenCD
                                             ],
                                 },
                                 "DS_ChousaMeisai": {
-                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD"
+                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD",
                                                 "CreateTime", "UpdateTime", "DelFlg"], #足りないカラムを追加
                                     "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
-                                              JimushoCD, KasenCD, KenCD, SuikeiCD
-                                              #CreateTime
-                                              #UpdateTime
-                                              0,],  
+                                            JimushoCD, KasenCD, KenCD, SuikeiCD,
+                                            create_time,#CreateTime
+                                            update_time,#UpdateTime
+                                            0],  
                                 },
                                 "DS_ChousaIjouchiSuiteiGenin": {
-                                    "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn"],
+                                    "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn", "CISG_SuiteiNaiyou", "CISG_SankouInfo"],
                                     "values": [DateNo_New, Latest_row.get("CenterCD"),
                                             DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
                                             DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
-                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn")]
+                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn"),
+                                            '', ''], #足りないカラムを追加20250929(''で入力)
                                 },
-                                "DS_ChousaIjouchiHandan": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]},
-                                "DS_ChousaKaizenTaiou": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]},
-                                "DS_ChousashoShokanKikanKinyuuran": {"columns": ["DateNo", "CenterCD"], "values": [DateNo_New, Latest_row.get("CenterCD")]}
+                                "DS_ChousaIjouchiHandan": {"columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time]}, #足りないカラムを追加20250929(''で入力)
+                                "DS_ChousaKaizenTaiou": {"columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '']}, #足りないカラムを追加20250929(''で入力)
+                                "DS_ChousashoShokanKikanKinyuuran": {"columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '']} #足りないカラムを追加20250929(''で入力)
                             }
 
                             # 一括挿入
