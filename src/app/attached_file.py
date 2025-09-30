@@ -473,7 +473,7 @@ time.sleep(1)
 # =============================
 
 # 保存ベースディレクトリ
-Temp_base_dir = os.path.join("Temp", "調査書", "監視者", DateNo)
+Temp_base_dir = os.path.join("Temp", "調査書", "判断者", DateNo)
 
 # # ディレクトリを作成（存在しない場合のみ）
 # os.makedirs(Temp_base_dir, exist_ok=True)

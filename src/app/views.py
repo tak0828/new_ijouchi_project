@@ -474,7 +474,6 @@ def toggle_watch(request):
                                     "--excel_data", csv_file_name + "更新結果",
                                     json.dumps(csv_row_json, ensure_ascii=False),
                                     json.dumps(TempFile_results, ensure_ascii=False)],
-                                    # TempFile_results],
                                     check=True,
                                     cwd=os.path.dirname(fileupload_path),
                                     capture_output=True,
@@ -510,7 +509,7 @@ def toggle_watch(request):
                                                 "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
                                                 "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
                                                 "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
-                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05", #添付ファイルのカラム追加
+                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05", #添付ファイル(上側)のカラム追加
                                                 "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"], #足りないカラムを追加
                                     "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
                                             r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
@@ -529,11 +528,11 @@ def toggle_watch(request):
                                             '', #  発生経緯は空白固定
                                             4, # ← 新異常値検知検出システムで HakkenHouhouCDは4固定
                                             Latest_row.get("KKShubetsuCD"),
-                                            TempFilePath1 if TempFilePath1 else '', #ない場合は''挿入
-                                            TempFilePath2 if TempFilePath2 else '', #ない場合は''挿入
-                                            TempFilePath3 if TempFilePath3 else '', #ない場合は''挿入
-                                            TempFilePath4 if TempFilePath4 else '', #ない場合は''挿入
-                                            TempFilePath5 if TempFilePath5 else '', #ない場合は''挿入
+                                            '', #ない場合は''挿入1
+                                            '', #ない場合は''挿入2
+                                            '', #ない場合は''挿入3
+                                            '', #ない場合は''挿入4
+                                            '', #ない場合は''挿入5
                                             next_seq, # SeqNo
                                             r["観測日時"].strftime("%Y-%m-%d"), #StartDate
                                             r["観測日時"].strftime("%H:%M"), #StartTime
@@ -560,7 +559,22 @@ def toggle_watch(request):
                                             DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn"),
                                             '', ''], #足りないカラムを追加20250929(''で入力)
                                 },
-                                "DS_ChousaIjouchiHandan": {"columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time]}, #足りないカラムを追加20250929(''で入力)
+                                "DS_ChousaIjouchiHandan": {
+                                    "columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime", 
+                                                "CIH_TempFile_Kansoku", "CIH_TempFile_DataKanshi", "CIH_TempFile_CCTV", "CIH_TempFile_HP", "CIH_TempFile_Etc1", "CIH_TempFile_Etc2", "CIH_TempFile_Etc3", "CIH_TempFile_Etc4", 
+                                                "CIH_TempFile_Etc5", "CIH_TempFile_Etc6",], #添付ファイルのカラム追加(CIH_TempFile_KansokuからCIH_TempFile_Etc6まで)
+                                    "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time,
+                                                TempFilePath1 if TempFilePath1 else '', #ない場合は''挿入1(10.png)
+                                                '', #ない場合は''挿入2
+                                                '', #ない場合は''挿入3
+                                                '', #ない場合は''挿入4
+                                                TempFilePath2 if TempFilePath2 else '', #ない場合は''挿入5(20.png)
+                                                TempFilePath3 if TempFilePath3 else '', #ない場合は''挿入6(30.png)
+                                                TempFilePath4 if TempFilePath4 else '', #ない場合は''挿入7
+                                                TempFilePath5 if TempFilePath5 else '', #ない場合は''挿入8
+                                                '', #ない場合は''挿入9
+                                                '', #ない場合は''挿入10
+                                                ]}, #足りないカラムを追加20250929(''で入力)
                                 "DS_ChousaKaizenTaiou": {"columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '']}, #足りないカラムを追加20250929(''で入力)
                                 "DS_ChousashoShokanKikanKinyuuran": {"columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '']} #足りないカラムを追加20250929(''で入力)
                             }

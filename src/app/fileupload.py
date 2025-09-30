@@ -76,6 +76,9 @@ print(f"DateNo: {DateNo}")
 ServPathK = ini['upload_info']['Kanshi_Path']
 ServPathH = ini['upload_info']['Handan_Path']
 
+# 保存添付ファイルのディレクトリ(そのままだとカレントディレクトリでしかファイルを探せないのでconfig.ini から取得予定)
+TempPath_dir= ini['File_Path']['png_filepath']
+
 # アップロードファイル名(CSVもしくは生成状況から取得予定)
 UpFileName = csv_name
 HostName = ini['upload_info']['Host_Server']
@@ -125,20 +128,25 @@ for i, row in enumerate(TempFile_results):
                 print(stdout.read().decode())
                 print(stderr.read().decode())
                 # ここまで**********************************
-            elif isinstance(value, str) and value != "0":
+        else:
+            # TempFile_results[i][j] (1～9列目)の処理
+            if isinstance(value, str) and value != "0":
                 print(f"No match at row {i}: {value}")
+
+                # ローカルファイルパス(attached.pyで実行した添付ファイル保存先)
+                TempPath_local = os.path.join(TempPath_dir, value)
+                print(f"Local file path to upload: {TempPath_local}")
                 
                 # 判断者のPathへアップロード(今回は判断者のみにアップロード(下段)）
-                print(f"Uploading {value} to {UpServPathK}{value}")
-                print(f"Uploading {value} to {UpServPathH}{value}")
-                sftp.put(value, UpServPathH+value)
+                # print(f"Uploading {value} to {UpServPathK}{value}")
+                # print(f"Uploading {value} to {UpServPathH}{value}")
+                sftp.put(TempPath_local, UpServPathH+value)
 
-                # print(f"Uploading {UpFileName} to {UpServPathK}{UpFileName}")
-                # sftp.put(UpFileName, ServPath+UpFileName)
             
             elif isinstance(value, str) and value == "0":
                 print(f"No file to upload at row {i}: {value}")
                 break  # "0"の場合はアップロードしない
+
 
 
 sftp.close()
