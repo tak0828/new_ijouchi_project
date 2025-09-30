@@ -197,6 +197,7 @@ csv_filename = sys.argv[3]
 # csv_filename = csv_filename.get("csv_filename")
 
 h = 0
+z = 1
 for i in range(len(TempFile_results)):
     print(i)
     print(TempFile_results[i][0])
@@ -296,13 +297,15 @@ for obsrv in obsrvId_list:
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
 
-        TempFile_results[h][1] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
+        TempFile_results[h][z] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
+z=z+1
 
 
 
 
 #レーダー累加Cバンドキャプチャ処理
 TempFileNo = "20"
+
 
 for obsrv in obsrvId_list:
     if obsrv["Flag"]:  # FlagがTrueのものだけ処理
@@ -418,7 +421,8 @@ for obsrv in obsrvId_list:
         save_path = FileName1 + ".png"
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
-        TempFile_results[h][2] = FileName1 + ".png"
+        TempFile_results[h][z] = FileName1 + ".png"
+z=z+1
 
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
@@ -452,9 +456,12 @@ time.sleep(1)
 save_path = FileName1 + ".png"
 # driver.save_screenshot(save_path)
 save_screenshot_png(driver, save_path)
-TempFile_results[h][3] = FileName1 + ".png"
+TempFile_results[h][z] = FileName1 + ".png"
+z=z+1
 
 print(TempFile_results)
+
+# json.dumps(TempFile_results, ensure_ascii=False)
 
 save_screenshot_zip(driver, TempFile_results, csv_filename)
 
@@ -493,6 +500,7 @@ temp_result_paths = {
     "TempFilePath2": TempFilePath2,
     "TempFilePath3": TempFilePath3,
 }
+print(json.dumps(TempFile_results, ensure_ascii=False)) # JSON形式で出力
 print(json.dumps(temp_result_paths, ensure_ascii=False)) # JSON形式で出力
 # =============================
 # 終了

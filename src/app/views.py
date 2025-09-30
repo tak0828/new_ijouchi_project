@@ -121,7 +121,7 @@ def toggle_watch(request):
                                 is_exceed = True
 
                         # 近隣観測所フラグ
-                        is_kinbou = True
+                        is_kinbou = False
 
                         csv_rows.append({
                             "統一ID": Cd2_str.strip(),
@@ -387,6 +387,7 @@ def toggle_watch(request):
                                 csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
                                 data = {"TempFile_results": TempFile_results}
                                 TempFile_results = json.dumps(data, ensure_ascii=False)
+
                                 # attached_file.py のパス
                                 attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
                             
@@ -403,10 +404,15 @@ def toggle_watch(request):
 
                                     print("attached_file.py が正常に実行されました")
                                     
+                                    # あとで直す(print活用しない)
                                     # 標準出力を確認
                                     stdout_lines = temp_result.stdout.strip().splitlines()
-                                    json_str = stdout_lines[-1]  # 最後の行だけ
+                                    json_temp_str = stdout_lines[-2]  # 最後の2行目(添付ファイルのリスト)
+                                    json_str = stdout_lines[-1]  # 最後の行(添付ファイルアップロードパス)
                                     output_json = json.loads(json_str)
+
+                                    # 添付ファイルのリストを取得
+                                    TempFile_results = json.loads(json_temp_str)
 
                                     # 標準出力からパスを取り出す
                                     TempFilePath1 = output_json["TempFilePath1"] or ''
@@ -417,7 +423,6 @@ def toggle_watch(request):
                                     # TempFilePath4 = output_json["TempFilePath4"] or ''
                                     # TempFilePath5 = output_json["TempFilePath5"] or ''
 
-                                    
 
                                     print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
                                 
@@ -469,6 +474,7 @@ def toggle_watch(request):
                                     "--excel_data", csv_file_name + "更新結果",
                                     json.dumps(csv_row_json, ensure_ascii=False),
                                     json.dumps(TempFile_results, ensure_ascii=False)],
+                                    # TempFile_results],
                                     check=True,
                                     cwd=os.path.dirname(fileupload_path),
                                     capture_output=True,

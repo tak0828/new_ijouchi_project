@@ -6,8 +6,6 @@ import paramiko
 import sys
 from pathlib import Path
 
-# parsed = json.loads(sys.argv[2])
-# TempFile_results = parsed.get("TempFile_results") 
 
 
 # # -------------------------------
@@ -28,7 +26,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--csv_name", required=True)
 parser.add_argument("--excel_data", required=True)
 parser.add_argument("csv_row_json", help="JSON文字列で1行分のデータ")
-parser.add_argument("tempfile_results_json", help="JSON文字列でTempFile_results")
+parser.add_argument("TempFile_results", help="JSON文字列でTempFile_results")
 args = parser.parse_args()
 
 csv_name = args.csv_name
@@ -36,8 +34,8 @@ csv_name = args.csv_name
 
 # JSON文字列を辞書に変換
 upload_csv_row = json.loads(args.csv_row_json)
-# 
-TempFile_results = json.loads(json.loads(args.tempfile_results_json))["TempFile_results"]
+# TempFile_results = json.loads(json.loads(args.tempfile_results_json))["TempFile_results"]
+TempFile_results = json.loads(args.TempFile_results)
 
 
 print(f"受け取ったCSVファイル名: {csv_name}")
@@ -129,13 +127,12 @@ for i, row in enumerate(TempFile_results):
                 # ここまで**********************************
             elif isinstance(value, str) and value != "0":
                 print(f"No match at row {i}: {value}")
-
-
-
                 
-                # 監視者のPathへアップロード
+                # 判断者のPathへアップロード(今回は判断者のみにアップロード(下段)）
                 print(f"Uploading {value} to {UpServPathK}{value}")
-                sftp.put(value, UpServPathK+value)
+                print(f"Uploading {value} to {UpServPathH}{value}")
+                sftp.put(value, UpServPathH+value)
+
                 # print(f"Uploading {UpFileName} to {UpServPathK}{UpFileName}")
                 # sftp.put(UpFileName, ServPath+UpFileName)
             
