@@ -42,6 +42,70 @@ def Chousasho_insert_into_table(cursor, Chousasho_table_name, columns, values):
 
 
 
+# -----------------------sendmail.pyを実行----------------------------------------------------
+def run_sendmail(csv_filename, row_json, csv_file_path, csv_row_json):
+    # sendmail.py のパス
+    SendMail_path = os.path.join(settings.BASE_DIR, "app", "sendmail.py")
+    print(f"sendmail.py のパス: {SendMail_path}")  # 確認用
+
+    # メール件名・本文に CSVファイル名を追加
+    csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
+
+
+    try:
+        # subprocess で sendmail.py を実行する
+        sendmail_result = subprocess.run(
+                [sys.executable, SendMail_path, "--csv_name", csv_file_name,
+                "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
+                check=True,
+                cwd=os.path.dirname(SendMail_path),    # /app/app をカレントディレクトリに
+                capture_output=True,                    # stdout をキャプチャ
+                text=True,
+                encoding='utf-8'  # エンコーディングを指定
+            )
+
+        print("sendmail.py が正常に実行されました")
+        
+    except subprocess.CalledProcessError as e:  
+        print(f"sendmail.py の実行中にエラーが発生しました: {e}")   
+# -----------------------sendmail.pyを実行----------------------------------------------------
+# -----------------------fileupload.pyを実行----------------------------------------------------
+def run_fileupload(csv_row_json, csv_file_path, TempFile_results):
+    # fileupload.py のパス
+    fileupload_path = os.path.join(settings.BASE_DIR, "app", "fileupload.py")
+    print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
+
+    csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
+
+    try:
+        fileupload_result = subprocess.run(
+            [sys.executable, fileupload_path,
+            "--csv_name", csv_file_name,
+            "--excel_data", csv_file_name + "更新結果",
+            json.dumps(csv_row_json, ensure_ascii=False),
+            json.dumps(TempFile_results, ensure_ascii=False)],
+            check=True,
+            cwd=os.path.dirname(fileupload_path),
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+
+        print("fileupload.py が正常に実行されました")
+        
+    except subprocess.CalledProcessError as e:  
+        print(f"fileupload.py の実行中にエラーが発生しました: {e}")
+
+# -----------------------fileupload.pyを実行----------------------------------------------------
+
+
+
+
+
+
+
+
+
 @login_required
 def home_view(request):
     # 監視状態を取得（なければ作成）
@@ -434,59 +498,13 @@ def toggle_watch(request):
                             # -----------------------attached_file.pyを実行-----------------------------------------------
 
                             # -----------------------sendmail.pyを実行----------------------------------------------------
-                            # sendmail.py のパス
-                            SendMail_path = os.path.join(settings.BASE_DIR, "app", "sendmail.py")
-                            print(f"sendmail.py のパス: {SendMail_path}")  # 確認用
-
-                            # メール件名・本文に CSVファイル名を追加
-                            csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
-
-
-                            try:
-                                # subprocess で sendmail.py を実行する
-                                sendmail_result = subprocess.run(
-                                        [sys.executable, SendMail_path, "--csv_name", csv_file_name,
-                                        "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
-                                        check=True,
-                                        cwd=os.path.dirname(SendMail_path),    # /app/app をカレントディレクトリに
-                                        capture_output=True,                    # stdout をキャプチャ
-                                        text=True,
-                                        encoding='utf-8'  # エンコーディングを指定
-                                    )
-
-                                print("sendmail.py が正常に実行されました")
-                                
-                            except subprocess.CalledProcessError as e:  
-                                print(f"sendmail.py の実行中にエラーが発生しました: {e}")
-                            # -----------------------sendmail.pyを実行----------------------------------------------------
+                            # 関数化後
+                            run_sendmail(csv_filename, row, csv_file_path, csv_row_json)
                            
                             # -----------------------fileupload.pyを実行----------------------------------------------------
-                            # fileupload.py のパス
-                            fileupload_path = os.path.join(settings.BASE_DIR, "app", "fileupload.py")
-                            print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
 
-                            csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
-
-                            try:
-                                fileupload_result = subprocess.run(
-                                    [sys.executable, fileupload_path,
-                                    "--csv_name", csv_file_name,
-                                    "--excel_data", csv_file_name + "更新結果",
-                                    json.dumps(csv_row_json, ensure_ascii=False),
-                                    json.dumps(TempFile_results, ensure_ascii=False)],
-                                    check=True,
-                                    cwd=os.path.dirname(fileupload_path),
-                                    capture_output=True,
-                                    text=True,
-                                    encoding='utf-8'
-                                )
-
-                                print("fileupload.py が正常に実行されました")
-                                
-                            except subprocess.CalledProcessError as e:  
-                                print(f"fileupload.py の実行中にエラーが発生しました: {e}")
-
-
+                            # 関数化後
+                            run_fileupload(csv_row_json, csv_file_path, TempFile_results)
 
                             # -----------------------fileupload.pyを実行----------------------------------------------------
 
