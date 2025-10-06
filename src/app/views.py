@@ -15,6 +15,7 @@ import os
 import subprocess
 import csv
 import pymysql
+import traceback
 
 
 def login_view(request):
@@ -41,68 +42,358 @@ def Chousasho_insert_into_table(cursor, Chousasho_table_name, columns, values):
     cursor.execute(sql, values)
 
 
+def process_csv_row(csv_rows, MS_Kansokujo_dict, cursor, csv_filename):
+    """
+    CSV行複数行の処理を行う関数
+    DS_ChousaMeisaiの履歴検索
+    """
 
-# -----------------------sendmail.pyを実行----------------------------------------------------
-def run_sendmail(csv_filename, row_json, csv_file_path, csv_row_json):
-    # sendmail.py のパス
-    SendMail_path = os.path.join(settings.BASE_DIR, "app", "sendmail.py")
-    print(f"sendmail.py のパス: {SendMail_path}")  # 確認用
+    DS_ChousaMeisai_results = []
 
-    # メール件名・本文に CSVファイル名を追加
-    csv_file_name= os.path.basename(csv_file_path).replace(".csv", "")
+    for csv_row in csv_rows:
+        cd2 = csv_row["統一ID"]
+        if cd2 not in MS_Kansokujo_dict:
+            continue
+        
+        KansokujoCD, ShubetsuCD, KasenCD, KenCD, JimushoCD, SuikeiCD, Ido, Keido, CenterCD = MS_Kansokujo_dict[cd2]
+        
+        # 1年前～観測日時のDS_ChousaMeisaiの最新の1件だけ取得
+        sql2 = """
+            SELECT DateNo
+            FROM DS_ChousaMeisai
+            WHERE KansokujoCD = %s
+            AND ShubetsuCD = %s
+            AND STR_TO_DATE(LEFT(DateNo,10),'%%Y/%%m/%%d') BETWEEN %s AND %s
+            ORDER BY DateNo DESC
+            LIMIT 1
+        """
+        params = [KansokujoCD, ShubetsuCD, csv_row["1年前日時"].strftime("%Y/%m/%d"), csv_row["観測日時"].strftime("%Y/%m/%d")]
+        cursor.execute(sql2, params)
+        DateNo_List = cursor.fetchone() #1件だけ取得(辞書型)
+        DateNo = DateNo_List["DateNo"] if DateNo_List else None  # 文字列だけ取り出す  # 文字列だけ取り出す
+
+        
+        DS_ChousaMeisai_results.append({
+            "csv_row": csv_row,
+            "KansokujoCD": KansokujoCD,
+            "ShubetsuCD": ShubetsuCD,
+            "KasenCD": KasenCD,
+            "KenCD": KenCD,
+            "JimushoCD": JimushoCD,
+            "SuikeiCD": SuikeiCD,
+            "Ido": Ido,
+            "Keido": Keido,
+            "CenterCD": CenterCD,
+            "DateNo": DateNo
+        })
+    return DS_ChousaMeisai_results
 
 
+def get_latest_chousa_kihon(cursor, DateNo):
+    
+    """
+    最新のDS_ChousaKihonレコードを取得
+    """
+    Latest_row = None
+    DS_ChousaKihon_results = []
+    
+    for SQL_DateNo in DateNo:
+        sql3 = """
+            SELECT *
+            FROM DS_ChousaKihon
+            WHERE DateNo = %s
+            AND HasseiJoukyouCD = '845108'
+            ORDER BY DateNo DESC
+            LIMIT 1
+        """
+        cursor.execute(sql3, [SQL_DateNo])
+        DS_ChousaKihon_row = cursor.fetchone()
+        if DS_ChousaKihon_row:
+            DS_ChousaKihon_results.append(DS_ChousaKihon_row)
+            if (Latest_row is None) or (DS_ChousaKihon_row["DateNo"] > Latest_row["DateNo"]):
+                Latest_row = DS_ChousaKihon_row
+    
+    return DS_ChousaKihon_results
+
+
+def get_latest_chousa_suitei(cursor, DateNo, CenterCD):
+
+    """
+    最新のDS_ChousaSuiteiレコードを取得
+    """
+
+    DS_ChousaIjouchiSuiteiGenin_results = []
+
+    # DateNo と CenterCD をペアでループ
+    for SQL_DateNo, SQL_CenterCD  in zip(DateNo, CenterCD):
+        sql4 = """
+            SELECT CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
+            FROM DS_ChousaIjouchiSuiteiGenin
+            WHERE DateNo = %s
+            AND CenterCD = %s
+        """
+        cursor.execute(sql4, [SQL_DateNo, SQL_CenterCD])
+        DS_ChousaIjouchiSuiteiGenin_row = cursor.fetchone()
+
+        # DS_ChousaMeisaiから取得したCenterCDとDateNoをもとに最新のDS_ChousaSuiteiレコード(CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn)を取得
+        
+        DS_ChousaIjouchiSuiteiGenin_results.append({
+            "DateNo": SQL_DateNo,
+            "CenterCD": SQL_CenterCD,
+            "CISG_GeninKashoKbn": DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
+            "CISG_HasseiUM": DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
+            "CISG_SuiteiGeninKbn": DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn"),
+        })
+
+    return DS_ChousaIjouchiSuiteiGenin_results
+
+
+
+def generate_new_dateno(cursor, csv_dt, CenterCD):
+    """
+    新しいDateNoを生成(複数行)
+    """
+
+    New_DateNo_results = []
+
+    # 既存DateNoの最大番号をキャッシュしておく辞書(同じセンターコードかつ観測日時(年月日)の検索に利用)
+    max_no_cache = {}
+
+
+    for SQL_csv_dt, SQL_CenterCD  in zip(csv_dt, CenterCD):
+        # 観測日時を連結
+        date_str = SQL_csv_dt.strftime("%Y/%m/%d")  # 文字列化
+        dateno_key = (date_str, SQL_CenterCD)
+
+        # まだキャッシュにない場合はDBから取得
+        if dateno_key not in max_no_cache:
+    
+            # その日付の既存DateNoを取得
+            sql5 = """
+                SELECT DateNo FROM DS_ChousaKihon
+                WHERE DateNo LIKE %s AND CenterCD=%s
+                ORDER BY DateNo DESC
+            """
+            like_DateNo = f"{date_str}-%"   # このままだと最新レコード入手できないから
+            cursor.execute(sql5, (like_DateNo, SQL_CenterCD))
+            DateNo_existing = cursor.fetchall()
+
+            if DateNo_existing:
+                # 既存DateNoの最大連番を取得
+                max_no_cache[dateno_key] = max(int(DateNo_List['DateNo'].split("-")[1]) for DateNo_List in DateNo_existing)
+            else:
+                # DateNo_New_no = "001
+                max_no_cache[dateno_key] = 0
+
+        # 新しい連番を作る
+        max_no_cache[dateno_key] += 1
+        DateNo_New_no = f"{max_no_cache[dateno_key]:03d}"
+
+        # DateNoを作る（スラッシュを消してハイフン形式に統一）
+        date_part = date_str.replace("/", "")        
+        DateNo_CSV = f"{date_part}-{DateNo_New_no}"
+
+
+        # 新しいDateNoをリストに追加
+        New_DateNo_results.append(f"{DateNo_CSV}")
+
+    return New_DateNo_results
+    
+
+def execute_attached_file_processing(csv_rows, DateNo_New, csv_filename, settings):
+    """
+    attached_file.pyの実行処理(複数行)
+    """
+
+    # CSV行のdatetimeを文字列化
+    for row in csv_rows:
+        if isinstance(row.get("観測日時"), datetime):
+            row["観測日時"] = row["観測日時"].strftime("%Y/%m/%d %H:%M")
+        if isinstance(row.get("1年前日時"), datetime):
+            row["1年前日時"] = row["1年前日時"].strftime("%Y/%m/%d %H:%M")
+
+    # CSV行をJSON文字列に変換
+    csv_row_json = json.dumps(csv_rows, ensure_ascii=False)
+    
+    # TempFile_resultsを初期化
+
+    TempFile_results = {}
+
+    for dn in DateNo_New:  # DateNo_New がリストなので
+        TempFile_results[dn] = {
+            "DateNo": dn,
+            "attached_files": ["0"] * 10
+        }  
+
+    print(TempFile_results)  
+    
+    data = {"TempFile_results": TempFile_results}
+    TempFile_results_json = json.dumps(data, ensure_ascii=False)
+    
+    # attached_file.py のパス
+    attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
+    
     try:
-        # subprocess で sendmail.py を実行する
-        sendmail_result = subprocess.run(
-                [sys.executable, SendMail_path, "--csv_name", csv_file_name,
-                "--excel_data", csv_file_name + "更新結果", csv_row_json],      # コンテナの Python を使う( csvファイル名, excelファイル名, csv_json(DateNo等）を引数で渡す)
-                check=True,
-                cwd=os.path.dirname(SendMail_path),    # /app/app をカレントディレクトリに
-                capture_output=True,                    # stdout をキャプチャ
-                text=True,
-                encoding='utf-8'  # エンコーディングを指定
-            )
+        # subprocess で attached_file.py を実行
+        temp_result = subprocess.run(
+            [sys.executable, attached_file_path, csv_row_json, TempFile_results_json, csv_filename],
+            check=True,
+            cwd=os.path.dirname(attached_file_path),
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+        
+        print("attached_file.py が正常に実行されました")
+        
+        # 標準出力を確認
+        stdout_lines = temp_result.stdout.strip().splitlines()
+        json_temp_str = stdout_lines[-2]  # 最後の2行目(添付ファイルのリスト)
+        json_str = stdout_lines[-1]  # 最後の行(添付ファイルアップロードパス)
+        output_json = json.loads(json_str)
+        
+        # 添付ファイルのリストを取得
+        TempFile_results = json.loads(json_temp_str)
+        
+        # 標準出力からパスを取り出す
+        TempFilePath1 = output_json["TempFilePath1"] or ''
+        TempFilePath2 = output_json["TempFilePath2"] or ''
+        TempFilePath3 = output_json["TempFilePath3"] or ''
+        TempFilePath4 = ''
+        TempFilePath5 = ''
+        
+        print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
+        
+        return TempFile_results, TempFilePath1, TempFilePath2, TempFilePath3, TempFilePath4, TempFilePath5
+        
+    except subprocess.CalledProcessError as e:
+        print(f"attached_file.py の実行中にエラーが発生しました: {e}")
+        raise e
 
+
+def execute_sendmail_processing(csv_file_name, csv_row_json, settings):
+    """
+    sendmail.pyの実行処理
+    """
+    SendMail_path = os.path.join(settings.BASE_DIR, "app", "sendmail.py")
+    
+    try:
+        sendmail_result = subprocess.run(
+            [sys.executable, SendMail_path, "--csv_name", csv_file_name,
+             "--excel_data", csv_file_name + "更新結果", csv_row_json],
+            check=True,
+            cwd=os.path.dirname(SendMail_path),
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
         print("sendmail.py が正常に実行されました")
         
-    except subprocess.CalledProcessError as e:  
-        print(f"sendmail.py の実行中にエラーが発生しました: {e}")   
-# -----------------------sendmail.pyを実行----------------------------------------------------
-# -----------------------fileupload.pyを実行----------------------------------------------------
-def run_fileupload(csv_row_json, csv_file_path, TempFile_results):
-    # fileupload.py のパス
+    except subprocess.CalledProcessError as e:
+        print(f"sendmail.py の実行中にエラーが発生しました: {e}")
+
+
+def execute_fileupload_processing(csv_file_name, csv_row_json, TempFile_results, settings):
+    """
+    fileupload.pyの実行処理
+    """
     fileupload_path = os.path.join(settings.BASE_DIR, "app", "fileupload.py")
-    print(f"fileupload.py のパス: {fileupload_path}")  # 確認用
-
-    csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
-
+    
     try:
         fileupload_result = subprocess.run(
             [sys.executable, fileupload_path,
-            "--csv_name", csv_file_name,
-            "--excel_data", csv_file_name + "更新結果",
-            json.dumps(csv_row_json, ensure_ascii=False),
-            json.dumps(TempFile_results, ensure_ascii=False)],
+             "--csv_name", csv_file_name,
+             "--excel_data", csv_file_name + "更新結果",
+             json.dumps(csv_row_json, ensure_ascii=False),
+             json.dumps(TempFile_results, ensure_ascii=False)],
             check=True,
             cwd=os.path.dirname(fileupload_path),
             capture_output=True,
             text=True,
             encoding='utf-8'
         )
-
         print("fileupload.py が正常に実行されました")
         
-    except subprocess.CalledProcessError as e:  
+    except subprocess.CalledProcessError as e:
         print(f"fileupload.py の実行中にエラーが発生しました: {e}")
 
-# -----------------------fileupload.pyを実行----------------------------------------------------
 
+def insert_database_records(cursor, DateNo_New, Latest_row, csv_row, ShubetsuCD, KansokujoCD, 
+                           JimushoCD, KasenCD, KenCD, SuikeiCD, DS_ChousaIjouchiSuiteiGenin_row,
+                           TempFilePath1, TempFilePath2, TempFilePath3, TempFilePath4, TempFilePath5,
+                           seq_dict):
+    """
+    データベースへのレコード挿入処理
+    """
+    # 次の MeisaiNo
+    next_seq = seq_dict.get(KansokujoCD, 1)
+    seq_dict[KansokujoCD] = next_seq + 1
 
+    # CreateTime, UpdateTime は現在日時で作成
+    create_now = datetime.now()
+    create_time = create_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(create_now.microsecond/1000):03d}"
+    update_now = datetime.now()
+    update_time = update_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(update_now.microsecond/1000):03d}"
 
+    # 挿入データまとめ
+    Chousasho_insert_data = {
+        "DS_ChousaKihon": {
+            "columns": ["DateNo", "CenterCD", "HasseiJoukyouCD",
+                        "KakuninDate", "KakuninTime",
+                        "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
+                        "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
+                        "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
+                        "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05",
+                        "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"],
+            "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
+                    csv_row["観測日時"].strftime("%Y-%m-%d"), csv_row["観測日時"].strftime("%H:%M"),
+                    Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
+                    Latest_row.get("KanriCD"), Latest_row.get("ShozokuCD"),
+                    Latest_row.get("DenwaKaitou", 0),
+                    1, 0, 0, 0, 0, 0, 0, 0, 0, '', 4, Latest_row.get("KKShubetsuCD"),
+                    '', '', '', '', '', next_seq,
+                    csv_row["観測日時"].strftime("%Y-%m-%d"), csv_row["観測日時"].strftime("%H:%M"),
+                    create_time, update_time, 1, Latest_row.get("KenCD")],
+        },
+        "DS_ChousaMeisai": {
+            "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD",
+                        "CreateTime", "UpdateTime", "DelFlg"],
+            "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
+                    JimushoCD, KasenCD, KenCD, SuikeiCD, create_time, update_time, 0],  
+        },
+        "DS_ChousaIjouchiSuiteiGenin": {
+            "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn", "CISG_SuiteiNaiyou", "CISG_SankouInfo"],
+            "values": [DateNo_New, Latest_row.get("CenterCD"),
+                    DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
+                    DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
+                    DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn"),
+                    '', ''],
+        },
+        "DS_ChousaIjouchiHandan": {
+            "columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime", 
+                        "CIH_TempFile_Kansoku", "CIH_TempFile_DataKanshi", "CIH_TempFile_CCTV", "CIH_TempFile_HP", "CIH_TempFile_Etc1", "CIH_TempFile_Etc2", "CIH_TempFile_Etc3", "CIH_TempFile_Etc4", 
+                        "CIH_TempFile_Etc5", "CIH_TempFile_Etc6"],
+            "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time,
+                        TempFilePath1 if TempFilePath1 else '', '', '', '', 
+                        TempFilePath2 if TempFilePath2 else '', TempFilePath3 if TempFilePath3 else '', 
+                        TempFilePath4 if TempFilePath4 else '', TempFilePath5 if TempFilePath5 else '', 
+                        '', ''],
+        },
+        "DS_ChousaKaizenTaiou": {
+            "columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], 
+            "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '']
+        },
+        "DS_ChousashoShokanKikanKinyuuran": {
+            "columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], 
+            "values": [DateNo_New, Latest_row.get("CenterCD"), '', '']
+        }
+    }
 
-
-
+    # 一括挿入
+    for Chousasho_table_name, Chousasho_data in Chousasho_insert_data.items():
+        Chousasho_insert_into_table(cursor, Chousasho_table_name, Chousasho_data["columns"], Chousasho_data["values"])
+    
+    return next_seq
 
 
 
@@ -144,8 +435,8 @@ def toggle_watch(request):
             watch_status.is_watching = True
             watch_status.save()
 
-            # CSVファイルのパス（例としてプロジェクトの雨量_注意_新潟デモ.csvを使用）
-            csv_file_path = os.path.join(settings.BASE_DIR, "csv", "雨量_注意_新潟デモ.csv")
+            # CSVファイルのパス（複数行テスト用）
+            csv_file_path = os.path.join(settings.BASE_DIR, "csv", "雨量_注意_新潟デモ2.csv")
 
             # ファイル名から種別、警戒レベル、期間を取得
             file_name = os.path.basename(csv_file_path).replace(".csv", "")  # '雨量_注意_新潟デモ'
@@ -240,6 +531,7 @@ def toggle_watch(request):
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
                 # 統一IDから MS_KansokujoからKansokujoCD を取得(緯度経度も取得20250922)(近傍観測所のID情報も取得20250926)(JimushoCDがJimushoCD2ではなくIDなのでMS_JimushoからJimushoCDを取得するように変更20250929)
+                # csv_rows→r
                 KansokujoCD2_list = list({r["統一ID"] for r in csv_rows})  # 重複排除
                 placeholders = ','.join(['%s'] * len(KansokujoCD2_list))
                 sql = f"SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD, KansokujoCD2, Ido, Keido, CenterCD FROM MS_Kansokujo WHERE KansokujoCD2 IN ({placeholders})"
@@ -268,345 +560,101 @@ def toggle_watch(request):
                 # MS_Kansokujo を辞書化: KansokujoCD2 → (KansokujoCD, ShubetsuCD)
                 MS_Kansokujo_dict = {r["KansokujoCD2"]: (r["KansokujoCD"], r["ShubetsuCD"], r["KasenCD"], r["KenCD"], MS_Jimusho_dict.get(r["JimushoCD"]), r["SuikeiCD"], r["Ido"], r["Keido"], r["CenterCD"] ) for r in MS_Kansokujo_results}
 
-                # 各CSV行ごとに DS_ChousaMeisai 件数取得(1年前～観測日時) 
-                DS_ChousaKihon_counts = []
+                # 各CSV行ごとに処理
                 seq_dict = {}  # 観測所ごとの連番保持用辞書
-                h = 0
+
+                # CSV複数行に緯度、経度、地方コードを入れる
                 for r in csv_rows:
-                    cd2 = r["統一ID"]
-                    if cd2 not in MS_Kansokujo_dict:
-                        continue
-                    KansokujoCD, ShubetsuCD, KasenCD, KenCD, JimushoCD, SuikeiCD, Ido, Keido, CenterCD = MS_Kansokujo_dict[cd2]
+                    # CSV行データを準備
+                    row_data =MS_Kansokujo_dict.get(r["統一ID"])
                     
-                    sql2 = """
-                        SELECT DateNo
-                        FROM DS_ChousaMeisai
-                        WHERE KansokujoCD = %s
-                        AND ShubetsuCD = %s
-                        AND STR_TO_DATE(LEFT(DateNo,10),'%%Y/%%m/%%d') BETWEEN %s AND %s
-                    """
-                    params = [KansokujoCD, ShubetsuCD, r["1年前日時"].strftime("%Y/%m/%d"), r["観測日時"].strftime("%Y/%m/%d")]
-                    cursor.execute(sql2, params)
-                    DateNo_results = cursor.fetchall()
-                    DateNo_list = [DateNo_row["DateNo"] for DateNo_row in DateNo_results]
+                    # # 緯度経度を追加
+                    if row_data:
+                        _, _, _, _, _, _, ido, keido, center_cd = row_data
+                        r["緯度"] = ido
+                        r["経度"] = keido
+                        r["地方CD"] = center_cd
+                    else:
+                        r["緯度"] = r["経度"] = r["地方CD"] = None
 
-
-                    # "雨量"かつ"注意"かつ基準値超過の場合のみ処理
-                    if Shubetsu_level == '雨量' and Keikai_level == '注意' and r.get('基準値超過', False):
-                        Latest_row = None
-                        # 取得した DateNo で DS_ChousaKihonレコードを取得(HasseiJoukyouCD='845108' の最新レコード1件だけ取得)
-                        DS_ChousaKihon_results = []
-
-                        # TempFile_results = []
-                        rows, cols = j, 11  
-                        TempFile_results = [["0" for _ in range(cols)] for _ in range(rows)]
-
-                        # TempFile_results = [[0]*11]*K  --- TempFile_results[0][K]=DateNo  TempFile_results[1-10][K]=添付ファイル---
-                        # TempFile_results = [****-001, 0,0,0,0,0,0,0,0,0,0
-                        #                     ****-002, 0,0,0,0,0,0,0,0,0,0]
-                        
-                        
-                        for DateNo in DateNo_list:
-                            sql3 = """
-                                SELECT *
-                                FROM DS_ChousaKihon
-                                WHERE DateNo = %s
-                                AND HasseiJoukyouCD = '845108'
-                                ORDER BY DateNo DESC
-                                LIMIT 1
+                    
+                    # 近傍観測所フラグの処理
+                    is_kinbou = r.get("近傍観測所フラグ", False)
+                    if is_kinbou:
+                        for i in range(1, 4):
+                            kinbou_key = f"近傍観測所{i}のID"
+                            kinbou_cd2 = r.get(kinbou_key)
+                            
+                            if not kinbou_cd2:
+                                continue
+                            
+                            # DBから近傍観測所の情報を取得
+                            sql = """
+                                SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD,
+                                    KansokujoCD2, Ido, Keido, CenterCD
+                                FROM MS_Kansokujo
+                                WHERE KansokujoCD2 = %s
                             """
-                            cursor.execute(sql3, [DateNo])
-                            DS_ChousaKihon_row = cursor.fetchone()
-                            if DS_ChousaKihon_row:
-                                DS_ChousaKihon_results.append(DS_ChousaKihon_row)
+                            cursor.execute(sql, [kinbou_cd2])
+                            kinbou_row = cursor.fetchone()
+                            if kinbou_row:
+                                r[f"近傍観測所{i}フラグ"] = True
+                                print(f"近傍観測所 {kinbou_cd2} の情報を追加しました")
 
-                                if (Latest_row is None) or (DS_ChousaKihon_row["DateNo"] > Latest_row["DateNo"]):
-                                    Latest_row = DS_ChousaKihon_row
 
-                        print(f"統一ID {cd2} の最新 DS_ChousaKihon.DateNo (HasseiJoukyouCD=845108): {Latest_row['DateNo'] if Latest_row else None}")
-                        # for col, val in Latest_row.items():  # カラム名と値を一覧で表示
-                        #     print(f"  {col}: {val}")
+                # ----------------------ここから改修-------------------------
+                
+                # CSV行の処理
+                DS_ChousaMeisai_results = process_csv_row(csv_rows, MS_Kansokujo_dict, cursor, csv_filename)
 
-                        # DS_ChousaIjouchiSuiteiGenin を DateNoとCenterCD で推定原因、原因発生個所、繰り返し発生の有無取得
-                        if Latest_row:
-                            sql4 = """
-                                SELECT CISG_GeninKashoKbn, CISG_HasseiUM, CISG_SuiteiGeninKbn
-                                FROM DS_ChousaIjouchiSuiteiGenin
-                                WHERE DateNo = %s
-                                AND CenterCD = %s
-                                """
-                            cursor.execute(sql4, [Latest_row["DateNo"], Latest_row["CenterCD"]])
-                            DS_ChousaIjouchiSuiteiGenin_row = cursor.fetchone()
+                # 複数行まとめてDateNOを抽出(辞書型なので変換)
+                DateNo_List = [DateNo_List["DateNo"] for DateNo_List in DS_ChousaMeisai_results]
+                
+                # 複数行まとめてCenterCDを抽出(辞書型なので変換)
+                CenterCD_List = [CenterCD_List["CenterCD"] for CenterCD_List in DS_ChousaMeisai_results]
+                
+                # 最新のDS_ChousaKihonレコードを取得
+                DS_ChousaKihon_results = get_latest_chousa_kihon(cursor, DateNo_List)
+        
+                # 最新のDS_ChousaIjouchiSuiteiレコードを取得
+                DS_ChousaIjouchiSuiteiGenin_results = get_latest_chousa_suitei(cursor, DateNo_List, CenterCD_List)
 
-                            print(f"DS_ChousaIjouchiSuiteiGenin (DateNo={Latest_row['DateNo']}, CenterCD={Latest_row['CenterCD']}) 件数: {len(DS_ChousaIjouchiSuiteiGenin_row)}")
-
-                            
-                        # -----------------------データベース登録-----------------------------------------------
-                            # DS_ChousaKihon の新規登録
-
-                            # DB用に分割
-                            KakuninDate = csv_dt.strftime("%Y-%m-%d")   # "2025-06-29"
-                            KakuninTime = csv_dt.strftime("%H:%M")      # "16:50"
-
-                            # その日付の既存DateNoを取得
-                            DateNo_check_sql = """
-                                SELECT DateNo FROM DS_ChousaKihon
-                                WHERE DateNo LIKE %s AND CenterCD=%s
-                                ORDER BY DateNo DESC
-                            """
-                            cursor.execute(DateNo_check_sql, [f"{date_str}-%", Latest_row["CenterCD"]])
-                            DateNo_existing = cursor.fetchall()
-
-                            if DateNo_existing:
-                                # 既存DateNoの最大連番を取得
-                                DateNo_last_no = max(int(row['DateNo'].split("-")[1]) for row in DateNo_existing)
-                                DateNo_New_no = f"{DateNo_last_no + 1:03d}"
-                            else:
-                                DateNo_New_no = "001"
-
-                            TempFile_results[0][h] = f"{date_str}-{DateNo_New_no}"  # 1列目に DateNo をセット
-                            h = h + 1
-
-                            DateNo_New = f"{date_str}-{DateNo_New_no}"
-                            print("新規DateNo:", DateNo_New)
-
-                            # DateNoをリストに追加
-                            DateNo_list.append(DateNo_New)
-
-                            # -----------------------attached_file.pyを実行-----------------------------------------------
-                            for test_csv_row in csv_rows:
-
-                                test_csv_row = test_csv_row.copy()
-
-                                # datetime を文字列に変換
-                                if isinstance(test_csv_row["観測日時"], datetime):
-                                    test_csv_row["観測日時"] = test_csv_row["観測日時"].strftime("%Y/%m/%d %H:%M")
-                                if isinstance(test_csv_row["1年前日時"], datetime):
-                                    test_csv_row["1年前日時"] = test_csv_row["1年前日時"].strftime("%Y/%m/%d %H:%M")
-
-                                # ディレクトリ判定になるため　/ を - に置換
-                                # 1.DateNo を追加※日付部分を置換（YYYY/MM/DD → YYYYMMDD）
-                                date_part = DateNo_New.split("-")[0].replace("/", "")   # "20250629"
-
-                                # 2. 連番部分をゼロパディング
-                                serial_part = DateNo_New.split("-")[1].zfill(3)         # "003"
-
-                                # 3. 結合
-                                DateNo_CSV = f"{date_part}-{serial_part}"         # "20250629-003"  
-                                test_csv_row["DateNo"] = DateNo_CSV
-
-                                # 緯度経度を追加
-                                test_csv_row["緯度"] = Ido
-                                test_csv_row["経度"] = Keido
+                # CSV複数行まとめてを観測日時を抽出(辞書型なので変換)
+                KansokuDate_List = [KansokuDate_List["観測日時"] for KansokuDate_List in csv_rows]
+                
+                # 新しいDateNoを生成
+                DateNo_New = generate_new_dateno(cursor, KansokuDate_List, CenterCD_List)
+                
                                 
-                                # CenterCDを追加
-                                test_csv_row["地方CD"] = CenterCD
-
-                                if is_kinbou:
-                                    # 近傍観測所1～3を順に追加
-                                    kinbou_flags = {}  # 近傍観測所フラグ初期化
-                                    for i in range(1, 4):
-                                        kinbou_key = f"近傍観測所{i}のID"
-                                        kinbou_cd2 = test_csv_row.get(kinbou_key)
-                                        # 近傍観測所フラグをDBに統一ID(KansokujoCD2登録があるものを判別するため)
-                                        kinbou_flags[i] = False  # 初期値False
-
-                                        # IDが空白の場合はスキップ
-                                        if not kinbou_cd2:
-                                            continue
-
-                                        # DBから近傍観測所の情報を取得
-                                        sql = """
-                                            SELECT KansokujoCD, ShubetsuCD, JimushoCD, KasenCD, KenCD, SuikeiCD,
-                                                KansokujoCD2, Ido, Keido, CenterCD
-                                            FROM MS_Kansokujo
-                                            WHERE KansokujoCD2 = %s
-                                        """
-                                        cursor.execute(sql, [kinbou_cd2])
-                                        kinbou_row = cursor.fetchone()
-                                        if not kinbou_row:
-                                            print(f"近傍観測所{i}:{kinbou_cd2} は MS_Kansokujo に存在しません")
-                                            continue
-
-                                        # # 近傍観測所情報を追加
-                                        # test_csv_row[f"近傍観測所{i}_KansokujoCD"] = kinbou_row["KansokujoCD"]
-                                        # test_csv_row[f"近傍観測所{i}_ShubetsuCD"] = kinbou_row["ShubetsuCD"]
-                                        # test_csv_row[f"近傍観測所{i}_KasenCD"] = kinbou_row["KasenCD"]
-                                        # test_csv_row[f"近傍観測所{i}_KenCD"] = kinbou_row["KenCD"]
-                                        # test_csv_row[f"近傍観測所{i}_JimushoCD"] = kinbou_row["JimushoCD"]
-                                        # test_csv_row[f"近傍観測所{i}_SuikeiCD"] = kinbou_row["SuikeiCD"]
-                                        # test_csv_row[f"近傍観測所{i}_統一ID"] = kinbou_row["KansokujoCD2"]
-                                        # test_csv_row[f"近傍観測所{i}_緯度"] = kinbou_row["Ido"]
-                                        # test_csv_row[f"近傍観測所{i}_経度"] = kinbou_row["Keido"]
-                                        # test_csv_row[f"近傍観測所{i}_地方CD"] = kinbou_row["CenterCD"]
-                                        
-                                        # 近傍観測所フラグをTrueに設定
-                                        kinbou_flags[i] = True
-                                        test_csv_row[f"近傍観測所{i}フラグ"] = True
-                                        # 既存の test_csv_row の後ろに追加
-                                        print(test_csv_row)
-                                        print(f"近傍観測所 {kinbou_cd2} の情報を追加しました")
-
-                                # CSV行をJSON文字列に変換
-                                csv_row_json = json.dumps(test_csv_row, ensure_ascii=False)
-                                data = {"TempFile_results": TempFile_results}
-                                TempFile_results = json.dumps(data, ensure_ascii=False)
-
-                                # attached_file.py のパス
-                                attached_file_path = os.path.join(settings.BASE_DIR, "app", "attached_file.py")
-                            
-                                try:
-                                    # subprocess で attached_file.py を実行し、標準出力を取得
-                                    temp_result = subprocess.run(
-                                            [sys.executable, attached_file_path, csv_row_json, TempFile_results, csv_filename],      # コンテナの Python を使う(csvを引数で渡す(json文字列))
-                                            check=True,
-                                            cwd=os.path.dirname(attached_file_path),    # /app/app をカレントディレクトリに
-                                            capture_output=True,                    # stdout をキャプチャ
-                                            text=True,
-                                            encoding='utf-8'  # エンコーディングを指定
-                                        )
-
-                                    print("attached_file.py が正常に実行されました")
-                                    
-                                    # あとで直す(print活用しない)
-                                    # 標準出力を確認
-                                    stdout_lines = temp_result.stdout.strip().splitlines()
-                                    json_temp_str = stdout_lines[-2]  # 最後の2行目(添付ファイルのリスト)
-                                    json_str = stdout_lines[-1]  # 最後の行(添付ファイルアップロードパス)
-                                    output_json = json.loads(json_str)
-
-                                    # 添付ファイルのリストを取得
-                                    TempFile_results = json.loads(json_temp_str)
-
-                                    # 標準出力からパスを取り出す
-                                    TempFilePath1 = output_json["TempFilePath1"] or ''
-                                    TempFilePath2 = output_json["TempFilePath2"] or ''
-                                    TempFilePath3 = output_json["TempFilePath3"] or ''
-                                    TempFilePath4 = ''
-                                    TempFilePath5 = ''
-                                    # TempFilePath4 = output_json["TempFilePath4"] or ''
-                                    # TempFilePath5 = output_json["TempFilePath5"] or ''
-
-
-                                    print("取得したファイルパス:", TempFilePath1, TempFilePath2, TempFilePath3)
-                                
-                                except subprocess.CalledProcessError as e:  
-                                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
-                                    return JsonResponse({"status": "attached_file_error", "message": str(e)})
-                                
-                            
-                            # -----------------------attached_file.pyを実行-----------------------------------------------
-
-                            # -----------------------sendmail.pyを実行----------------------------------------------------
-                            # 関数化後
-                            run_sendmail(csv_filename, row, csv_file_path, csv_row_json)
-                           
-                            # -----------------------fileupload.pyを実行----------------------------------------------------
-
-                            # 関数化後
-                            run_fileupload(csv_row_json, csv_file_path, TempFile_results)
-
-                            # -----------------------fileupload.pyを実行----------------------------------------------------
-
-                            # 次の MeisaiNo
-                            next_seq = seq_dict.get(KansokujoCD, 1)
-                            seq_dict[KansokujoCD] = next_seq + 1
-
-                            # CreateTime, UpdateTime は現在日時で作成
-                            create_now = datetime.now()
-                            create_time = create_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(create_now.microsecond/1000):03d}"
-                            update_now = datetime.now()
-                            update_time = update_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(update_now.microsecond/1000):03d}"
-
-
-                            # 挿入データまとめ
-                            Chousasho_insert_data = {
-                                "DS_ChousaKihon": {
-                                    "columns": ["DateNo", "CenterCD", "HasseiJoukyouCD",
-                                                "KakuninDate", "KakuninTime",
-                                                "IjouKessokuKbnCD", "JK_Kbn", "KanriCD", "ShozokuCD", "DenwaKaitou", "Shubetsu01",
-                                                "Shubetsu02","Shubetsu03","Shubetsu04","Shubetsu05","Shubetsu06","Shubetsu07","Shubetsu08",
-                                                "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
-                                                "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05", #添付ファイル(上側)のカラム追加
-                                                "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"], #足りないカラムを追加
-                                    "values": [DateNo_New, Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
-                                            r["観測日時"].strftime("%Y-%m-%d"), r["観測日時"].strftime("%H:%M"),
-                                            Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
-                                            Latest_row.get("KanriCD"), Latest_row.get("ShozokuCD"),
-                                            Latest_row.get("DenwaKaitou", 0),
-                                            1,  # ← 雨量確定で Shubetsu01は1固定
-                                            0,  # ← 雨量確定で Shubetsu02は0固定
-                                            0,  # ← 雨量確定で Shubetsu03は0固定
-                                            0,  # ← 雨量確定で Shubetsu04は0固定
-                                            0,  # ← 雨量確定で Shubetsu05は0固定
-                                            0,  # ← 雨量確定で Shubetsu06は0固定
-                                            0,  # ← 雨量確定で Shubetsu07は0固定
-                                            0,  # ← 雨量確定で Shubetsu08は0固定
-                                            0,  # ← 雨量確定で Shubetsu09は0固定
-                                            '', #  発生経緯は空白固定
-                                            4, # ← 新異常値検知検出システムで HakkenHouhouCDは4固定
-                                            Latest_row.get("KKShubetsuCD"),
-                                            '', #ない場合は''挿入1
-                                            '', #ない場合は''挿入2
-                                            '', #ない場合は''挿入3
-                                            '', #ない場合は''挿入4
-                                            '', #ない場合は''挿入5
-                                            next_seq, # SeqNo
-                                            r["観測日時"].strftime("%Y-%m-%d"), #StartDate
-                                            r["観測日時"].strftime("%H:%M"), #StartTime
-                                            create_time,#CreateTime
-                                            update_time,#UpdateTime
-                                            1, #FormatType(0:旧フォーマット、1:新フォーマット)
-                                            Latest_row.get("KenCD"), #KenCD
-                                            ],
-                                },
-                                "DS_ChousaMeisai": {
-                                    "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD",
-                                                "CreateTime", "UpdateTime", "DelFlg"], #足りないカラムを追加
-                                    "values": [DateNo_New, Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
-                                            JimushoCD, KasenCD, KenCD, SuikeiCD,
-                                            create_time,#CreateTime
-                                            update_time,#UpdateTime
-                                            0],  
-                                },
-                                "DS_ChousaIjouchiSuiteiGenin": {
-                                    "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn", "CISG_SuiteiNaiyou", "CISG_SankouInfo"],
-                                    "values": [DateNo_New, Latest_row.get("CenterCD"),
-                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_GeninKashoKbn"),
-                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_HasseiUM"),
-                                            DS_ChousaIjouchiSuiteiGenin_row.get("CISG_SuiteiGeninKbn"),
-                                            '', ''], #足りないカラムを追加20250929(''で入力)
-                                },
-                                "DS_ChousaIjouchiHandan": {
-                                    "columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime", 
-                                                "CIH_TempFile_Kansoku", "CIH_TempFile_DataKanshi", "CIH_TempFile_CCTV", "CIH_TempFile_HP", "CIH_TempFile_Etc1", "CIH_TempFile_Etc2", "CIH_TempFile_Etc3", "CIH_TempFile_Etc4", 
-                                                "CIH_TempFile_Etc5", "CIH_TempFile_Etc6",], #添付ファイルのカラム追加(CIH_TempFile_KansokuからCIH_TempFile_Etc6まで)
-                                    "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time,
-                                                TempFilePath1 if TempFilePath1 else '', #ない場合は''挿入1(10.png)
-                                                '', #ない場合は''挿入2
-                                                '', #ない場合は''挿入3
-                                                '', #ない場合は''挿入4
-                                                TempFilePath2 if TempFilePath2 else '', #ない場合は''挿入5(20.png)
-                                                TempFilePath3 if TempFilePath3 else '', #ない場合は''挿入6(30.png)
-                                                TempFilePath4 if TempFilePath4 else '', #ない場合は''挿入7
-                                                TempFilePath5 if TempFilePath5 else '', #ない場合は''挿入8
-                                                '', #ない場合は''挿入9
-                                                '', #ない場合は''挿入10
-                                                ]}, #足りないカラムを追加20250929(''で入力)
-                                "DS_ChousaKaizenTaiou": {"columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '', '', '', '', '']}, #足りないカラムを追加20250929(''で入力)
-                                "DS_ChousashoShokanKikanKinyuuran": {"columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], "values": [DateNo_New, Latest_row.get("CenterCD"), '', '']} #足りないカラムを追加20250929(''で入力)
-                            }
-
-                            # 一括挿入
-                            for Chousasho_table_name, Chousasho_data in Chousasho_insert_data.items():
-                                Chousasho_insert_into_table(cursor, Chousasho_table_name, Chousasho_data["columns"], Chousasho_data["values"])
-                            conn.commit()
-
-                            DS_ChousaKihon_counts.append({"統一ID": cd2, "DateNo": DateNo_New})
-
-                            print(f"統一ID {cd2} のデータベース登録が完了しました。新規DateNo: {DateNo_New}")
-
-                        # ---------------------------データベース登録-----------------------------------------------
+                # attached_file.pyを実行
+                try:
+                    TempFile_results, TempFilePath1, TempFilePath2, TempFilePath3, TempFilePath4, TempFilePath5 = execute_attached_file_processing(
+                        csv_rows, DateNo_New, csv_filename, settings
+                    )
+                except Exception as e:
+                    print(f"attached_file.py の実行中にエラーが発生しました: {e}")
+                    # continue
+                
+                # sendmail.pyを実行
+                csv_file_name = os.path.basename(csv_file_path).replace(".csv", "")
+                csv_row_json = json.dumps(csv_rows, ensure_ascii=False)
+                execute_sendmail_processing(csv_file_name, csv_row_json, settings)
+                
+                # fileupload.pyを実行
+                execute_fileupload_processing(csv_file_name, csv_row_json, TempFile_results, settings)
+                
+                # データベースにレコード挿入
+                next_seq = insert_database_records(
+                    cursor, DateNo_New, Latest_row, r, row_data["ShubetsuCD"], 
+                    row_data["KansokujoCD"], row_data["JimushoCD"], row_data["KasenCD"], 
+                    row_data["KenCD"], row_data["SuikeiCD"], DS_ChousaIjouchiSuiteiGenin_row,
+                    TempFilePath1, TempFilePath2, TempFilePath3, TempFilePath4, TempFilePath5,
+                    seq_dict
+                )
+                
+                conn.commit()
+                DS_ChousaKihon_counts.append({"統一ID": r["統一ID"], "DateNo": DateNo_New})
+                print(f"統一ID {r['統一ID']} のデータベース登録が完了しました。新規DateNo: {DateNo_New}")
 
                 conn.close()
                 
@@ -648,7 +696,10 @@ def toggle_watch(request):
     except Exception as e:
         return JsonResponse({
             'success': False,
-            'message': f'エラーが発生しました: {str(e)}'
+            'message': f'エラーが発生しました: {str(e)}',
+            'exception_type': str(exc_type.__name__),
+            'line_no': lineno,
+            'trace': traceback.format_exc()
         })
 
 

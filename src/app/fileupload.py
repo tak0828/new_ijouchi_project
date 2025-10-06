@@ -91,61 +91,44 @@ ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(HostName, username=UserName, password=PassWD)
 sftp = ssh.open_sftp()
 
-h = 0
-for i, row in enumerate(TempFile_results):
-    UpServPathK = ""
-    UpServPathH = ""
-    PathDateNo = ""
-    for j, value in enumerate(row):
-        if j == 0:
-            print(f"Type of value at [{i}][{j}]: {type(value)}")
-            PathDateNo = TempFile_results[i][0].replace("/", "") 
-            if PathDateNo == DateNo:
-                print(f"Match found at row {i}: {value}")
-                # Pathの作成
-                # 監視者のPath　/home/surveydb/SurveyDB/media/Temp/調査書/監視者/
-                UpServPathK = ServPathK + PathDateNo + "/"
-                # Path の確認*******************************
+# 新しい辞書形式のTempFile_resultsを処理
+for date_no, entry in TempFile_results.items():
+    if date_no == DateNo:
+        print(f"Match found for DateNo: {date_no}")
+        
+        # Pathの作成
+        PathDateNo = date_no.replace("/", "")
+        
+        # 監視者のPath
+        UpServPathK = ServPathK + PathDateNo + "/"
+        # ディレクトリが存在しない場合は作成
+        stdin, stdout, stderr = ssh.exec_command(f'mkdir -p {UpServPathK}')
+        print(stdout.read().decode())
+        print(stderr.read().decode())
 
-                dir_path = Path(UpServPathK)
-                # ディレクトリが存在しない場合は作成
-                stdin, stdout, stderr = ssh.exec_command(f'mkdir -p {UpServPathK}')
-                print(stdout.read().decode())
-                print(stderr.read().decode())
-
-                # dir_path.mkdir(parents=True, exist_ok=True)
-                # ここまで**********************************
-
-
-                # 判断者のPath　/home/surveydb/SurveyDB/media/Temp/調査書/判断者/　
-                UpServPathH = ServPathH + PathDateNo + "/"
-                # Path の確認*******************************
-
-                dir_path = Path(UpServPathH)
-                # ディレクトリが存在しない場合は作成
-                # dir_path.mkdir(parents=True, exist_ok=True)
-                stdin, stdout, stderr = ssh.exec_command(f'mkdir -p {UpServPathH}')
-                print(stdout.read().decode())
-                print(stderr.read().decode())
-                # ここまで**********************************
-        else:
-            # TempFile_results[i][j] (1～9列目)の処理
-            if isinstance(value, str) and value != "0":
-                print(f"No match at row {i}: {value}")
-
-                # ローカルファイルパス(attached.pyで実行した添付ファイル保存先)
-                TempPath_local = os.path.join(TempPath_dir, value)
+        # 判断者のPath
+        UpServPathH = ServPathH + PathDateNo + "/"
+        # ディレクトリが存在しない場合は作成
+        stdin, stdout, stderr = ssh.exec_command(f'mkdir -p {UpServPathH}')
+        print(stdout.read().decode())
+        print(stderr.read().decode())
+        
+        # 添付ファイルの処理
+        attached_files = entry.get("attached_files", [])
+        for filename in attached_files:
+            if isinstance(filename, str) and filename != "0":
+                print(f"Uploading file: {filename}")
+                
+                # ローカルファイルパス
+                TempPath_local = os.path.join(TempPath_dir, filename)
                 print(f"Local file path to upload: {TempPath_local}")
                 
-                # 判断者のPathへアップロード(今回は判断者のみにアップロード(下段)）
-                # print(f"Uploading {value} to {UpServPathK}{value}")
-                # print(f"Uploading {value} to {UpServPathH}{value}")
-                sftp.put(TempPath_local, UpServPathH+value)
-
-            
-            elif isinstance(value, str) and value == "0":
-                print(f"No file to upload at row {i}: {value}")
-                break  # "0"の場合はアップロードしない
+                # 判断者のPathへアップロード
+                sftp.put(TempPath_local, UpServPathH + filename)
+                print(f"Uploaded {filename} to {UpServPathH}")
+            elif isinstance(filename, str) and filename == "0":
+                print(f"No file to upload: {filename}")
+                continue
 
 
 

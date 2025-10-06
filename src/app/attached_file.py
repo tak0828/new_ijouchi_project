@@ -107,14 +107,16 @@ def save_screenshot_png(driver, file_name_png):
 
 def save_screenshot_zip(driver, TempFile_results, csv_filename): 
     zipfileList = []
-    # TempFile_results = json.loads(TempFile_results)
     print(TempFile_results)
-    for i, row in enumerate(TempFile_results):
-        for j, value in enumerate(row):
-            zipfileName = TempFile_results[i][j]
-            print(f"Type of value at [{i}][{j}]: {type(zipfileName)}")
-            if isinstance(value, str) and value.endswith(".png"):
-                zipfileList.append(TempFile_results[i][j])
+    
+    # 新しい辞書形式のTempFile_resultsからPNGファイルを抽出
+    for date_no, entry in TempFile_results.items():
+        attached_files = entry.get("attached_files", [])
+        for filename in attached_files:
+            if isinstance(filename, str) and filename.endswith(".png") and filename != "0":
+                zipfileList.append(filename)
+                print(f"ZIPに追加: {filename}")
+    
     # ZIP化
     zip_dir = "/app/media/zip"
     png_dir = "/app/media/png/"
@@ -129,12 +131,6 @@ def save_screenshot_zip(driver, TempFile_results, csv_filename):
             else:
                 print(f"ファイルが見つかりません: {png_path}")
 
-
-
-
-    # zip_path = os.path.join(zip_dir, os.path.basename(file_name_png).replace(".png", ".zip"))
-    # with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-    #     zipf.write(png_path, arcname=os.path.basename(png_path))
     print(f"ZIP作成完了: {zip_path}")
 
 
@@ -190,20 +186,14 @@ ChihouCD = test_csv_row.get("地方CD") # View 側(MS_Kansokujoの地方CD) を�
 # キャプチャ処理用の時刻を取得
 Year, Month, Day, Hour, Minute = get_rireki_date(test_csv_row)
 
-# parsed = json.loads(TempFile_results)
+# TempFile_resultsを新しい辞書形式で処理
 parsed = json.loads(sys.argv[2])
 TempFile_results = parsed.get("TempFile_results") 
 csv_filename = sys.argv[3]
-# csv_filename = csv_filename.get("csv_filename")
 
-h = 0
-z = 1
-for i in range(len(TempFile_results)):
-    print(i)
-    print(TempFile_results[i][0])
-    if TempFile_results[i][0] == DateNo:  # 2列目以降を初期化
-        h = i
-        break 
+# DateNoに対応するエントリを取得
+current_entry = TempFile_results.get(DateNo, {})
+attached_files = current_entry.get("attached_files", ["0"] * 10) 
 
 
 # メイン観測所のリスト(辞書の作成(近傍観測所を追加))
@@ -297,8 +287,7 @@ for obsrv in obsrvId_list:
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
 
-        TempFile_results[h][z] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
-z=z+1
+        attached_files[1] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
 
 
 
@@ -421,8 +410,7 @@ for obsrv in obsrvId_list:
         save_path = FileName1 + ".png"
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
-        TempFile_results[h][z] = FileName1 + ".png"
-z=z+1
+        attached_files[2] = FileName1 + ".png"
 
 
 # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
@@ -456,12 +444,15 @@ time.sleep(1)
 save_path = FileName1 + ".png"
 # driver.save_screenshot(save_path)
 save_screenshot_png(driver, save_path)
-TempFile_results[h][z] = FileName1 + ".png"
-z=z+1
+attached_files[3] = FileName1 + ".png"
+
+# TempFile_resultsを更新
+TempFile_results[DateNo] = {
+    "DateNo": DateNo,
+    "attached_files": attached_files
+}
 
 print(TempFile_results)
-
-# json.dumps(TempFile_results, ensure_ascii=False)
 
 save_screenshot_zip(driver, TempFile_results, csv_filename)
 
