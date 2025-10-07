@@ -16,84 +16,107 @@ import zipfile
 import argparse
 
 
-chrome_options = Options()
-chrome_options.add_argument("--headless")           # GUIなしで実行
-chrome_options.add_argument("--no-sandbox")         # Docker向け
-chrome_options.add_argument("--disable-dev-shm-usage") # メモリ対策
-chrome_options.add_argument("--disable-gpu")        # GPU無効化
-chrome_options.add_argument("--remote-debugging-port=9222") # デバッグ用
-chrome_options.add_argument(f"--user-data-dir=/tmp/selenium_user_data_{os.getpid()}")  # ユニークなプロファイル
-chrome_options.add_argument("--window-size=1920,1500") # ウィンドウサイズ指定(ヘッドレスモードで必要)
-chrome_options.add_argument("--lang=ja-JP")  # 日本語対応
+def execute_attached_file_processing(csv_rows, csv_filename, TempFile_results):
 
-# Chromeドライバーのパス（必要に応じて変更）
-driver = webdriver.Chrome(options=chrome_options)
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")           # GUIなしで実行
+        chrome_options.add_argument("--no-sandbox")         # Docker向け
+        chrome_options.add_argument("--disable-dev-shm-usage") # メモリ対策
+        chrome_options.add_argument("--disable-gpu")        # GPU無効化
+        chrome_options.add_argument("--remote-debugging-port=9222") # デバッグ用
+        chrome_options.add_argument(f"--user-data-dir=/tmp/selenium_user_data_{os.getpid()}")  # ユニークなプロファイル
+        chrome_options.add_argument("--window-size=1920,1500") # ウィンドウサイズ指定(ヘッドレスモードで必要)
+        chrome_options.add_argument("--lang=ja-JP")  # 日本語対応
 
-# driver = webdriver.Chrome()
-# ログインページを開く
-driver.get("https://city.river.go.jp/kawabou/cityLogin.do")
-# 適切な待機（必要に応じてWebDriverWaitに変更）
-time.sleep(2)
+        # Chromeドライバーのパス（必要に応じて変更）
+        driver = webdriver.Chrome(options=chrome_options)
 
-# ログイン操作
-# def login():
+        # driver = webdriver.Chrome()
+        # ログインページを開く
+        driver.get("https://city.river.go.jp/kawabou/cityLogin.do")
+        # 適切な待機（必要に応じてWebDriverWaitに変更）
+        time.sleep(2)
 
-# ログインIDとパスワードを入力
-driver.find_element(By.NAME, "userId").send_keys("CFRICSTEST5")
-driver.find_element(By.NAME, "password").send_keys("fricstest5")
-# ログインボタンをクリック
-driver.find_element(By.ID, "login").click()
-# 必要に応じてログイン後の処理を追加
-time.sleep(1)
+        # ログイン操作
+        # def login():
 
-
-# ログイン前の URL(ログイン失敗時の URL)と比較してログイン成功を確認
-# ＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊
-login_url = "https://city.river.go.jp/kawabou/cityLogin.do"
-current_url = driver.current_url
-
-if current_url != login_url:
-    print(f"ログイン成功 現在のURL: {current_url}")
-else:
-    print(f"ログイン失敗 現在のURL: {current_url}")
-
-# ＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊
-
-# CSV行を受け取る
-if len(sys.argv) > 1:
-    test_csv_row = json.loads(sys.argv[1])
-else:
-    test_csv_row = {}
-
-# datetime に戻したい場合
-if "観測日時" in test_csv_row:
-    test_csv_row["観測日時"] = datetime.strptime(test_csv_row["観測日時"], "%Y/%m/%d %H:%M")
-# if "1年前日時" in test_csv_row:
-#     test_csv_row["1年前日時"] = datetime.strptime(test_csv_row["1年前日時"], "%Y/%m/%d %H:%M")
+        # ログインIDとパスワードを入力
+        driver.find_element(By.NAME, "userId").send_keys("CFRICSTEST4")
+        driver.find_element(By.NAME, "password").send_keys("fricstest4")
+        # ログインボタンをクリック
+        driver.find_element(By.ID, "login").click()
+        # 必要に応じてログイン後の処理を追加
+        time.sleep(1)
 
 
-print("受け取りCSV:", test_csv_row)
+        # ログイン前の URL(ログイン失敗時の URL)と比較してログイン成功を確認
+        # ＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊
+        login_url = "https://city.river.go.jp/kawabou/cityLogin.do"
+        current_url = driver.current_url
 
-def get_rireki_date(test_csv_row):
+        if current_url != login_url:
+            print(f"ログイン成功 現在のURL: {current_url}")
+        else:
+            print(f"ログイン失敗 現在のURL: {current_url}")
+
+        # キャプチャ処理用の時刻を取得
+        csv_rows, Year, Month, Day, Hour, Minute = get_rireki_date(csv_rows)
+
+        result1 = capture_water_level(driver, csv_rows,  csv_filename, TempFile_results, TempFileNo="10")
+        result2 = capture_radar_ruika(driver, csv_rows,  csv_filename, TempFile_results, TempFileNo="20")
+        result3 = capture_xrain_four(driver, csv_rows,  csv_filename, TempFile_results, TempFileNo="30")
+
+        #=============================
+        # 終了
+        driver.quit()
+
+        TempFile_results, temp_result_paths = generate_temp_file(csv_rows, TempFile_results)
+
+        return TempFile_results, temp_result_paths
+
+
+    except Exception as e:
+        print("=== 例外発生 ===")
+        print("エラー内容:", e)
+
+def get_rireki_date(csv_rows):
     """
-    CSVの観測日時をそのまま取得し、
-    Year, Month, Day, Hour, Minute を返す
+    CSVの観測日時をそのまま取得し、観測日時を文字列化
+    csv_rows の各行に 'Year', 'Month', 'Day', 'Hour', 'Minute' を追加する
     """
-    if "観測日時" not in test_csv_row:
-        raise ValueError("観測日時が存在しません")
 
-    dt = test_csv_row["観測日時"]
-    if not isinstance(dt, datetime):
+    Year = []
+    Month = []
+    Day = []
+    Hour = []
+    Minute = []
+
+    for row in csv_rows:
+        if "観測日時" not in row:
+            raise ValueError("観測日時が存在しません")
+
+        dt = row["観測日時"]
+        if not isinstance(dt, datetime):
         # CSVの文字列形式が "YYYY-MM-DD HH:MM:SS" の場合
-        dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+            dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+            # 上書きして csv_rows に保存
+            row["観測日時"] = dt
 
-    Year = dt.strftime("%Y")
-    Month = dt.strftime("%m")
-    Day = dt.strftime("%d")
-    Hour = dt.strftime("%H")
-    Minute = dt.strftime("%M")
+        row["Year"] = dt.strftime("%Y")
+        row["Month"] = dt.strftime("%m")
+        row["Day"] = dt.strftime("%d")
+        row["Hour"] = dt.strftime("%H")
+        row["Minute"] = dt.strftime("%M")
 
-    return Year, Month, Day, Hour, Minute
+        # 関数としてリストに追加
+        Year.append(row["Year"])
+        Month.append(row["Month"])
+        Day.append(row["Day"])
+        Hour.append(row["Hour"])
+        Minute.append(row["Minute"])
+
+    return csv_rows, Year, Month, Day, Hour, Minute
 
 
 def save_screenshot_png(driver, file_name_png):
@@ -110,13 +133,21 @@ def save_screenshot_zip(driver, TempFile_results, csv_filename):
     print(TempFile_results)
     
     # 新しい辞書形式のTempFile_resultsからPNGファイルを抽出
-    for date_no, entry in TempFile_results.items():
-        attached_files = entry.get("attached_files", [])
-        for filename in attached_files:
+    # for date_no, entry in TempFile_results.items():
+    #     TempFile_results = entry.get("TempFile_results", [])
+    #     for filename in TempFile_results:
+    #         if isinstance(filename, str) and filename.endswith(".png") and filename != "0":
+    #             zipfileList.append(filename)
+    #             print(f"ZIPに追加: {filename}")
+
+    # TempFile_results がリストなので変更する(1番最初の列だけ除外する)
+    for row in TempFile_results:
+        # 1列目（日付）を除いて PNG だけを処理
+        for filename in row[1:]:
             if isinstance(filename, str) and filename.endswith(".png") and filename != "0":
                 zipfileList.append(filename)
-                print(f"ZIPに追加: {filename}")
-    
+                print(f"ZIPに追加: {filename}")        
+            
     # ZIP化
     zip_dir = "/app/media/zip"
     png_dir = "/app/media/png/"
@@ -133,116 +164,40 @@ def save_screenshot_zip(driver, TempFile_results, csv_filename):
 
     print(f"ZIP作成完了: {zip_path}")
 
+def capture_water_level(driver, csv_rows,  csv_filename, TempFile_results, TempFileNo="10"):
+    """
+    CSV行(複数行)の情報から水位グラフを取得してPNG保存
+    """
+    # TempFile_results索引用
+    i = 0
+    # ファイル名用にDateNoから日付部分を抽出
+    for rows in csv_rows:
+        FileDateParts = rows["DateNo"][4:8]  # 例: "20250918-001" -> "0918"
+        KansokuName = rows["観測所名"] # 観測所名
+        ObsrvId = rows["統一ID"]
+        # 値が存在し、13桁でない場合は先頭に0を追加
+        if ObsrvId and len(ObsrvId) != 13:
+            ObsrvId = ObsrvId.zfill(13)  # 全体を13桁にゼロ埋め
 
-#リストから代入すること
-# KansokuName = "国上"
-# ObsrvId = "384100100039"
-# ObsrvId = "0" + ObsrvId
-# SuikeiName = "北陸その他"
-# RiverName = "その他"
-# KanriKbn = "自治体"
-# Syubetu = "雨量"
-# ChihouCD = "84"
-
-# DateNo = "20250918-001"
-# 近傍観測所をループでまとめる
-kinbou_data = []
-for i in range(1, 4):
-    KinbouName = test_csv_row.get(f"近傍観測所{i}の名称")
-    KinbouObsrvId = test_csv_row.get(f"近傍観測所{i}のID")
-    KinbouFlag = test_csv_row.get(f"近傍観測所{i}フラグ")
-    if KinbouObsrvId and not KinbouObsrvId.startswith("0"):
-        KinbouObsrvId = "0" + KinbouObsrvId
-    kinbou_data.append({
-        "KansokuName": KinbouName,
-        "ObsrvId": KinbouObsrvId, 
-        "Flag": KinbouFlag
-    })
-
-
-
-KansokuName = test_csv_row.get("観測所名")
-ObsrvId = test_csv_row.get("統一ID")
-if ObsrvId and not ObsrvId.startswith("0"):
-    ObsrvId = "0" + ObsrvId  # 先頭に0を付与
-SuikeiName = test_csv_row.get("水系名")
-RiverName = test_csv_row.get("河川名")
-KanriKbn = test_csv_row.get("管理区分")
-Syubetu = test_csv_row.get("項目種別")
-Kinbou1_KansokuName = kinbou_data[0]["KansokuName"] # 近傍観測所1の名称
-Kinbou1_ObsrvId = kinbou_data[0]["ObsrvId"] # 近傍観測所1のID
-Kinbou1_Flag = kinbou_data[0]["Flag"] # 近傍観測所1のフラグ
-Kinbou2_KansokuName = kinbou_data[1]["KansokuName"] # 近傍観測所2の名称
-Kinbou2_ObsrvId = kinbou_data[1]["ObsrvId"] # 近傍観測所2のID
-Kinbou2_Flag = kinbou_data[1]["Flag"] # 近傍観測所2のフラグ
-Kinbou3_KansokuName = kinbou_data[2]["KansokuName"] # 近傍観測所3の名称
-Kinbou3_ObsrvId = kinbou_data[2]["ObsrvId"] # 近傍観測所3のID
-Kinbou3_Flag = kinbou_data[2]["Flag"] # 近傍観測所3のフラグ
-DateNo = test_csv_row.get("DateNo") # View 側で生成した DateNo をそのまま使用
-clat = test_csv_row.get("緯度") # View 側(MS_Kansokujoの緯度) をそのまま使用
-clon = test_csv_row.get("経度") # View 側(MS_Kansokujoの経度) をそのまま使用
-ChihouCD = test_csv_row.get("地方CD") # View 側(MS_Kansokujoの地方CD) をそのまま使用
-
-# キャプチャ処理用の時刻を取得
-Year, Month, Day, Hour, Minute = get_rireki_date(test_csv_row)
-
-# TempFile_resultsを新しい辞書形式で処理
-parsed = json.loads(sys.argv[2])
-TempFile_results = parsed.get("TempFile_results") 
-csv_filename = sys.argv[3]
-
-# DateNoに対応するエントリを取得
-current_entry = TempFile_results.get(DateNo, {})
-attached_files = current_entry.get("attached_files", ["0"] * 10) 
-
-
-# メイン観測所のリスト(辞書の作成(近傍観測所を追加))
-obsrvId_list = [
-    {"ObsrvId":ObsrvId,"KansokuName":KansokuName, "Flag": True, "Type": "main"}, # メイン観測所
-    {"ObsrvId": Kinbou1_ObsrvId, "KansokuName": Kinbou1_KansokuName, "Flag": Kinbou1_Flag, "Type": "kinbou"}, # 近傍観測所1
-    {"ObsrvId": Kinbou2_ObsrvId, "KansokuName": Kinbou2_KansokuName, "Flag": Kinbou2_Flag, "Type": "kinbou"}, # 近傍観測所2
-    {"ObsrvId": Kinbou3_ObsrvId, "KansokuName": Kinbou3_KansokuName, "Flag": Kinbou3_Flag, "Type": "kinbou"}, # 近傍観測所3
-]
-
-#水位グラフキャプチャ処理
-TempFileNo = "10"
-# ファイル名用にDateNoから日付部分を抽出
-FileDateParts = DateNo[4:8] # "20250918-001" から "0918" を抽出
-
-# # 近傍観測所だけを抽出して、番号を振る
-# kinbou_obsrvs = [obsrv for obsrv in obsrvId_list if obsrv["Flag"] and obsrv["Type"] == "kinbou"]
-# for idx, obsrv in enumerate(kinbou_obsrvs, start=1):
-#     obsrv["KinbouIndex"] = idx  # 実際の順番で番号を振る
-
-
-for obsrv in obsrvId_list:
-    if obsrv["Flag"]:  # FlagがTrueのものだけ処理
-        ObsrvId = obsrv["ObsrvId"]
-        # KansokuName = obsrv["KansokuName"]
-        # # ファイル名 観測所名 + 日付 + "_" + 10
-        # FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
-
-        if obsrv["Type"] == "main":
-            # メイン観測所のファイル名
-            FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
-        else:
-            # 近傍観測所 → 動的に番号を付ける
-            FileName1 = f"【近傍】" + obsrv["KansokuName"] + FileDateParts + "_" + TempFileNo
+        # ファイル名作成
+        FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
 
         URL1 = "https://city.river.go.jp/kawabou/cityRainKobetu.do?init=init&obsrvId="
         URL2 = "&gamenId=02-0904&timeType=60&requestType=1"
 
-
         URL = URL1 + ObsrvId + URL2
-
-
         driver.get(URL)
 
         print(FileName1)
 
-
         #*****************************************************
         #指定時刻を表示する処理
+        Year = rows["Year"]
+        Month = rows["Month"]
+        Day = rows["Day"]
+        Hour = rows["Hour"]
+        Minute = rows["Minute"]
+
         # selectタグを取得
         dropdown = driver.find_element(By.ID, "cityRainKobetu_commonForm_yearMonthString") 
         # Selectオブジェクトを生成
@@ -287,28 +242,33 @@ for obsrv in obsrvId_list:
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
 
-        attached_files[1] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
+        TempFile_results[i][1] = FileName1 + ".png"  # 2列目に水位グラフのパスをセット
+        i += 1
 
 
+    return save_path
 
+def capture_radar_ruika(driver, csv_rows,  csv_filename, TempFile_results,  TempFileNo="20"):
+    
+    #レーダー累加Cバンドキャプチャ処理
+    """
+    CSV行(複数行)の情報からレーダー累加Cバンドを取得してPNG保存
+    """
+    # TempFile_results索引用
+    i = 0
 
-#レーダー累加Cバンドキャプチャ処理
-TempFileNo = "20"
-
-
-for obsrv in obsrvId_list:
-    if obsrv["Flag"]:  # FlagがTrueのものだけ処理
-        ObsrvId = obsrv["ObsrvId"]
-        # KansokuName = obsrv["KansokuName"]
-
+    for rows in csv_rows:
         # ファイル名 観測所名 + 日付 + "_" + 10
-        # FileName2 = KansokuName + FileDateParts + "_" + TempFileNo
+        FileDateParts = rows["DateNo"][4:8]  # 例: "20250918-001" -> "0918"
+        KansokuName = rows["観測所名"] # 観測所名
+        ObsrvId = rows["統一ID"]
+        # 値が存在し、13桁でない場合は先頭に0を追加
+        if ObsrvId and len(ObsrvId) != 13:
+            ObsrvId = ObsrvId.zfill(13)  # 全体を13桁にゼロ埋め
+        ChihouCD = rows["地方CD"] #地方CD
 
-        if obsrv["Type"] == "main":
-            # メイン観測所のファイル名
-            FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
-        else:
-            FileName1 = f"【近傍】" + obsrv["KansokuName"] + FileDateParts + "_" + TempFileNo
+        # メイン観測所のファイル名
+        FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
 
         URL1 = "https://city.river.go.jp/kawabou/cityRadarRuika.do?init=init&areaCd="
         URL2 = "&gamenId=02-1802"
@@ -318,6 +278,12 @@ for obsrv in obsrvId_list:
 
         #*****************************************************
         #指定時刻を表示する処理
+        Year = rows["Year"]
+        Month = rows["Month"]
+        Day = rows["Day"]
+        Hour = rows["Hour"]
+        Minute = rows["Minute"]
+
         # selectタグを取得
 
         WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located)
@@ -326,7 +292,7 @@ for obsrv in obsrvId_list:
         #***************
         # From
         #***************
-        date_obj = test_csv_row["観測日時"]   # ここで date_obj を定義
+        date_obj = rows["観測日時"]   # ここで date_obj を定義
         #3時間前を設定
         Fdate_obj = date_obj - timedelta(hours=3)
         FYY =  str(Fdate_obj.year)
@@ -410,92 +376,97 @@ for obsrv in obsrvId_list:
         save_path = FileName1 + ".png"
         # driver.save_screenshot(save_path)
         save_screenshot_png(driver, save_path)
-        attached_files[2] = FileName1 + ".png"
+        TempFile_results[i][2] = FileName1 + ".png"
+        i += 1
+    
+    return save_path
+
+def capture_xrain_four(driver, csv_rows,  csv_filename, TempFile_results,  TempFileNo="30"):
+
+    # 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
+    """
+    CSV行(複数行)の情報から一般向け川の防災情報(XRAIN4分割)を取得してPNG保存
+    """
+    # TempFile_results索引用
+    i = 0
+    for rows in csv_rows:
+        # ファイル名 観測所名 + 日付 + "_" + 10
+        FileDateParts = rows["DateNo"][4:8]  # 例: "20250918-001" -> "0918"
+        KansokuName = rows["観測所名"] # 観測所名
+        ObsrvId = rows["統一ID"]
+        # 値が存在し、13桁でない場合は先頭に0を追加
+        if ObsrvId and len(ObsrvId) != 13:
+            ObsrvId = ObsrvId.zfill(13)  # 全体を13桁にゼロ埋め
+
+        clat = rows["緯度"] # View 側(MS_Kansokujoの緯度) 
+        clon = rows["経度"] # View 側(MS_Kansokujoの経度) 
+        # 指定日時の取得
+        Year = rows["Year"]
+        Month = rows["Month"]
+        Day = rows["Day"]
+        Hour = rows["Hour"]
+        Minute = rows["Minute"]
+
+        Rdtime = Year + "%2F" + Month + "%2F" + Day + "%20" + Hour + "%3A" + Minute
+
+        # ファイル名 観測所名 + 日付 + "_" + 10
+        FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
+        URL1 = "https://www.river.go.jp/kawabou/pc/rd?zm=12&clat="
+        URL2 = "&clon="
+        URL3 ="&fld=0&mapType=0&viewGrpStg=0&viewRd=1&viewRW=1&viewRiver=1&viewPoint=1&ext=0&rdtype=xrain&rdnum=4&rdopa=50&rdint=5&rdtime="
+        URL = URL1 + clat + URL2 + clon + URL3 + Rdtime
+        driver.get(URL)
+
+        time.sleep(1)
+
+        save_path = FileName1 + ".png"
+        # driver.save_screenshot(save_path)
+        save_screenshot_png(driver, save_path)
+        TempFile_results[i][3] = FileName1 + ".png"
+
+        # TempFile_resultsを更新
+        TempFile_results[i][0] = rows["DateNo"]
+
+        i += 1
+    print(TempFile_results)
+    save_screenshot_zip(driver, TempFile_results, csv_filename)
+
+    time.sleep(1)
+
+def generate_temp_file(csv_rows, TempFile_results):
+    # =============================
+    # 出力パス生成処理
+    # =============================
+
+    temp_result_paths = []
+
+    for temp_files in TempFile_results:
+
+        Date = temp_files[0]          # "20250921-001"
+        DateNo  = Date.split("-")[1]    # "001"
+        MD = Date[4:8]            #"0921"
+        # KansokuName = temp_files[:-9] # 末尾 9文字除外 "+MMDD_10.png" は除外
+
+        # ファイル名部分だけ取り出す（0は除外）(temp_files2列目以降)
+        file_names = [f for f in temp_files[1:] if f != "0" and f]
+
+        temp_paths = []
+
+        for filename in file_names:
+            # 保存ベースディレクトリ
+            Temp_base_dir = os.path.join("Temp", "調査書", "判断者", DateNo)
+
+            # ファイルパスを生成してリストに追加
+            Temp_path = os.path.join(Temp_base_dir, filename)
+            temp_paths.append(Temp_path)
+
+        # この日付分のファイルパスリストをまとめて temp_result_paths に追加
+        temp_result_paths.append([Date] + temp_paths)
 
 
-# 一般向け川の防災情報(XRAIN4分割)キャプチャ処理
 
+    return TempFile_results, temp_result_paths
 
-# clat = "37.661679492823"
-# clon = "138.888006215311"
-# Year = "2025"
-# Month = "09"
-# Hour = "01"
-# Minute = "10"
-
-# Rdtime = Year + "%2F" + Month + "%20" + Hour + "%3A" + Minute
-Rdtime = Year + "%2F" + Month + "%2F" + Day + "%20" + Hour + "%3A" + Minute
-
-
-
-TempFileNo = "30"
-
-
-# ファイル名 観測所名 + 日付 + "_" + 10
-FileName1 = KansokuName + FileDateParts + "_" + TempFileNo
-URL1 = "https://www.river.go.jp/kawabou/pc/rd?zm=12&clat="
-URL2 = "&clon="
-URL3 ="&fld=0&mapType=0&viewGrpStg=0&viewRd=1&viewRW=1&viewRiver=1&viewPoint=1&ext=0&rdtype=xrain&rdnum=4&rdopa=50&rdint=5&rdtime="
-URL = URL1 + clat + URL2 + clon + URL3 + Rdtime
-driver.get(URL)
-
-time.sleep(1)
-
-save_path = FileName1 + ".png"
-# driver.save_screenshot(save_path)
-save_screenshot_png(driver, save_path)
-attached_files[3] = FileName1 + ".png"
-
-# TempFile_resultsを更新
-TempFile_results[DateNo] = {
-    "DateNo": DateNo,
-    "attached_files": attached_files
-}
-
-print(TempFile_results)
-
-save_screenshot_zip(driver, TempFile_results, csv_filename)
-
-
-time.sleep(1)
-
-# =============================
-# 出力パス生成処理
-# =============================
-
-# 保存ベースディレクトリ
-Temp_base_dir = os.path.join("Temp", "調査書", "判断者", DateNo)
-
-# # ディレクトリを作成（存在しない場合のみ）
-# os.makedirs(Temp_base_dir, exist_ok=True)
-
-# # "0829" のような月日を生成
-md_str = Month + Day   # "08" + "29" → "0829"
-
-# 拡張子なしのファイル名
-base_name_no_ext = f"{KansokuName}{md_str}"
-
-# FileName1, FileName2, FileName3 のパスを生成
-TempFilePath1 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_10.png")
-TempFilePath2 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_20.png")
-TempFilePath3 = os.path.join(Temp_base_dir, f"{base_name_no_ext}_30.png")
-
-# print("生成ファイルパス:")
-print(TempFilePath1)
-print(TempFilePath2)
-print(TempFilePath3)
-
-# 添付ファイル生成のパスを標準出力へ
-temp_result_paths = {
-    "TempFilePath1": TempFilePath1,
-    "TempFilePath2": TempFilePath2,
-    "TempFilePath3": TempFilePath3,
-}
-print(json.dumps(TempFile_results, ensure_ascii=False)) # JSON形式で出力
-print(json.dumps(temp_result_paths, ensure_ascii=False)) # JSON形式で出力
-# =============================
-# 終了
-driver.quit()
 
 
 

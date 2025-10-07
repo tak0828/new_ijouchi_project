@@ -18,7 +18,11 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libssl-dev \
     chromium \
+    # 日本語フォントのインストール追加
     fonts-liberation \
+    fonts-ipafont-gothic \
+    fonts-ipafont-mincho \
+    fonts-noto-cjk \
     && pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt \
     && apt-get remove -y build-essential gcc python3-dev libffi-dev libssl-dev \

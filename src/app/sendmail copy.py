@@ -10,40 +10,45 @@ from email.mime.multipart import MIMEMultipart
 from os.path import basename
 from openpyxl import Workbook  # Excel生成用
 
+# -------------------------------
+# 引数受け取り(CSVファイル名 + Excel情報)
+# -------------------------------
+csv_parser = argparse.ArgumentParser()
+csv_parser.add_argument("--csv_name", required=True)
+csv_parser.add_argument("--excel_data", required=False, help="カンマ区切りでExcelに書き込むデータ")
+csv_parser.add_argument("csv_row_json", help="JSON文字列で1行分のデータ")
+csv_args = csv_parser.parse_args()
+csv_name =csv_args.csv_name
+excel_data_name = csv_args.excel_data
+csv_row_json = csv_args.csv_row_json
+temp_csv_row = json.loads(csv_row_json) # JSONを辞書に変換
 
-def execute_sendmail_processing(csv_rows, csv_file_name):
-
-    try:
-
-
-        # -------------------------------
-        # print("=== 引数確認 start ===")
-        # print("csv_file_name:", csv_file_name)
-        # print("csv_rows:")
-        # for i, row in enumerate(csv_rows):
-        #     print(f"  Row {i}: {row}")
-        # print("=== 引数確認 end ===")
-
-        excel_data_name = csv_file_name + "更新結果"
-
-        send_mail(csv_rows, excel_data_name, csv_file_name)
+print(f"受け取ったCSVファイル名: {csv_name}")
+print(f"受け取ったExcelデータ名: {excel_data_name}")
+print(f"受け取ったCSV行データ(JSON): {csv_row_json}")
 
 
-    except Exception as e:
-        print("=== 例外発生 ===")
-        print("エラー内容:", e)
+# -------------------------------
+# ini の読み込み（絶対パスで）
+# -------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/app
+ini_path = os.path.join(BASE_DIR, "config", "config.ini")   # 設定ファイル　/app/config/config.ini
+print(f"config.ini のパス: {ini_path}")
 
+ini = configparser.ConfigParser()
+ret = ini.read(ini_path, 'UTF-8')
+if not ret:
+    print("config.ini が読み込めませんでした")
 
 
 # -------------------------------
 # Excel作成関数
 # -------------------------------
-def create_excel_file(csv_rows, excel_path):
+def create_excel_file(temp_csv_row, excel_path):
     """
-    csv_rows: dict (1行分のデータ)
+    temp_csv_row: dict (1行分のデータ)
     excel_path: 保存する Excel ファイルパス
     """
-
 
     # 更新内容「ヘッダー行」
     headers = ["DateNo", "観測日時", "項目種別", "観測所名", "水系名", "管理者", "管理区分"]
@@ -55,28 +60,17 @@ def create_excel_file(csv_rows, excel_path):
     # ヘッダー書き込み
     ws.append(headers)
 
-    # 各行を書き込み
-    for row in csv_rows:
-
-        # '観測日時' を文字列に変換
-        obs_dt = row.get("観測日時", "")
-        if isinstance(obs_dt, (str, type(None))):
-            obs_dt_str = obs_dt or ""
-        else:
-            obs_dt_str = obs_dt.strftime("%Y/%m/%d %H:%M")
-
-        excel_row_values = [
-            row.get("DateNo", ""),
-            # row.get("観測日時", ""),
-            obs_dt_str,
-            row.get("項目種別", ""),
-            row.get("観測所名", ""),
-            row.get("水系名", ""),
-            row.get("管理者", ""),
-            row.get("管理区分", "")
-        ]
-
-        ws.append(excel_row_values)
+    # 値を抽出して2行目に書き込み
+    excel_row_values = [
+        temp_csv_row.get("DateNo", ""),
+        temp_csv_row.get("観測日時", ""),
+        temp_csv_row.get("項目種別", ""),
+        temp_csv_row.get("観測所名", ""),
+        temp_csv_row.get("水系名", ""),
+        temp_csv_row.get("管理者", ""),
+        temp_csv_row.get("管理区分", "")
+    ]
+    ws.append(excel_row_values)
 
     # 更新内容エクセル保存
     wb.save(excel_path)
@@ -88,22 +82,8 @@ def create_excel_file(csv_rows, excel_path):
 # -------------------------------
 # メール送信関数
 # -------------------------------
-def send_mail(csv_rows, excel_data_name, csv_file_name):
+def send_mail():
     try: 
-        # -------------------------------
-        # ini の読み込み（絶対パスで）
-        # -------------------------------
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/app
-        ini_path = os.path.join(BASE_DIR, "config", "config.ini")   # 設定ファイル　/app/config/config.ini
-        print(f"config.ini のパス: {ini_path}")
-
-        ini = configparser.ConfigParser()
-        ret = ini.read(ini_path, 'UTF-8')
-        if not ret:
-            print("config.ini が読み込めませんでした")
-
-
-
         flg_mail=0
         # SMTP認証情報
         account = ini['mail_info']['FROM_ADDRESS']
@@ -115,8 +95,8 @@ def send_mail(csv_rows, excel_data_name, csv_file_name):
         #************************************************
         # MIMEの作成 (件名・本文に CSV名を追加)
         #************************************************
-        subject = f"{csv_file_name}：{ini['Mail_sbj']['Mail_subject']}"
-        message = f"{csv_file_name}：{ini['Mail_sbj']['Mail_message']}"
+        subject = f"{csv_name}：{ini['Mail_sbj']['Mail_subject']}"
+        message = f"{csv_name}：{ini['Mail_sbj']['Mail_message']}"
         msg = MIMEMultipart()
         msg["Subject"] = subject
         msg["To"] = to_email
@@ -154,7 +134,7 @@ def send_mail(csv_rows, excel_data_name, csv_file_name):
         if excel_data_name:
             os.makedirs(excel_filepath, exist_ok=True)
             excel_path = os.path.join(excel_filepath, f"{excel_data_name}.xlsx")
-            create_excel_file(csv_rows, excel_path)
+            create_excel_file(temp_csv_row, excel_path)
             mail_attach_files.append(excel_path)
 
         # 添付処理
@@ -211,6 +191,7 @@ def send_mail(csv_rows, excel_data_name, csv_file_name):
         return False
 
 
+send_mail()
 
 
 if __name__ == "__main__":
