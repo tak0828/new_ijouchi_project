@@ -194,9 +194,12 @@ def generate_new_dateno(cursor, csv_rows, csv_dt, CenterCD):
         # DateNo を作成（スラッシュを除去してハイフン形式）
         date_part = date_str.replace("/", "")
         DateNo_CSV = f"{date_part}-{DateNo_New_no}"
+        DateNo_CSV2 = f"{date_str}-{DateNo_New_no}"
 
-        # csv_rows の各行に 'DateNo' を追加
+        # csv_rows の各行に変数用に 'DateNo' を追加 データベース登録用に'DateNo2' を追加
         csv_rows[idx]['DateNo'] = DateNo_CSV
+        csv_rows[idx]['DateNo2'] = DateNo_CSV2
+
 
     return csv_rows
     
@@ -237,7 +240,7 @@ def insert_database_records(cursor, csv_rows, DS_ChousaKihon_results, DS_ChousaM
                             "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
                             "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05",
                             "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"],
-                "values": [rows["DateNo"], rows["地方CD"], DS_ChousaKihon_result.get("HasseiJoukyouCD"),
+                "values": [rows["DateNo2"], rows["地方CD"], DS_ChousaKihon_result.get("HasseiJoukyouCD"),
                         rows["観測日時"].strftime("%Y-%m-%d"), rows["観測日時"].strftime("%H:%M"),
                         DS_ChousaKihon_result.get("IjouKessokuKbnCD"), DS_ChousaKihon_result.get("JK_Kbn"),
                         DS_ChousaKihon_result.get("KanriCD"), DS_ChousaKihon_result.get("ShozokuCD"),
@@ -251,12 +254,12 @@ def insert_database_records(cursor, csv_rows, DS_ChousaKihon_results, DS_ChousaM
             "DS_ChousaMeisai": {
                 "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD",
                             "CreateTime", "UpdateTime", "DelFlg"],
-                "values": [rows["DateNo"], rows["地方CD"], str(next_seq), next_seq, rows["種別CD"], rows["観測所CD"], 
+                "values": [rows["DateNo2"], rows["地方CD"], str(next_seq), next_seq, rows["種別CD"], rows["観測所CD"], 
                         rows["事務所CD"], rows["河川CD"], rows["都道府県CD"], rows["水系CD"], create_time, update_time, 0],  
             },
             "DS_ChousaIjouchiSuiteiGenin": {
                 "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn", "CISG_SuiteiNaiyou", "CISG_SankouInfo"],
-                "values": [rows["DateNo"], rows["地方CD"],
+                "values": [rows["DateNo2"], rows["地方CD"],
                         DS_ChousaIjouchiSuiteiGenin_result["CISG_GeninKashoKbn"],
                         DS_ChousaIjouchiSuiteiGenin_result["CISG_HasseiUM"],
                         DS_ChousaIjouchiSuiteiGenin_result["CISG_SuiteiGeninKbn"],
@@ -266,7 +269,7 @@ def insert_database_records(cursor, csv_rows, DS_ChousaKihon_results, DS_ChousaM
                 "columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime", 
                             "CIH_TempFile_Kansoku", "CIH_TempFile_DataKanshi", "CIH_TempFile_CCTV", "CIH_TempFile_HP", "CIH_TempFile_Etc1", "CIH_TempFile_Etc2", "CIH_TempFile_Etc3", "CIH_TempFile_Etc4", 
                             "CIH_TempFile_Etc5", "CIH_TempFile_Etc6"],
-                "values": [rows["DateNo"], rows["地方CD"], '', '', '', '', '', '', '', '', create_time, update_time,
+                "values": [rows["DateNo2"], rows["地方CD"], '', '', '', '', '', '', '', '', create_time, update_time,
                             TempFilePath1 if TempFilePath1 else '', '', '', '', 
                             TempFilePath2 if TempFilePath2 else '', TempFilePath3 if TempFilePath3 else '', 
                             TempFilePath4 if TempFilePath4 else '', TempFilePath5 if TempFilePath5 else '', 
@@ -274,11 +277,11 @@ def insert_database_records(cursor, csv_rows, DS_ChousaKihon_results, DS_ChousaM
             },
             "DS_ChousaKaizenTaiou": {
                 "columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], 
-                "values": [rows["DateNo"], rows["地方CD"], '', '', '', '', '', '']
+                "values": [rows["DateNo2"], rows["地方CD"], '', '', '', '', '', '']
             },
             "DS_ChousashoShokanKikanKinyuuran": {
                 "columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], 
-                "values": [rows["DateNo"], rows["地方CD"], '', '']
+                "values": [rows["DateNo2"], rows["地方CD"], '', '']
             }
         }
 
