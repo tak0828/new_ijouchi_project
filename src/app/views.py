@@ -153,57 +153,6 @@ def get_latest_chousa_suitei(cursor, DateNo, CenterCD):
     return DS_ChousaIjouchiSuiteiGenin_results
 
 
-
-# def generate_new_dateno(cursor, csv_rows , csv_dt, CenterCD):
-#     """
-#     新しいDateNoを生成(複数行)
-#     """
-
-#     # New_DateNo_results = []
-
-#     # 既存DateNoの最大番号をキャッシュしておく辞書(同じセンターコードかつ観測日時(年月日)の検索に利用)
-#     max_no_cache = {}
-
-
-#     for SQL_csv_dt, SQL_CenterCD  in zip(csv_dt, CenterCD):
-#         # 観測日時を連結
-#         date_str = SQL_csv_dt.strftime("%Y/%m/%d")  # 文字列化
-#         dateno_key = (date_str, SQL_CenterCD)
-
-#         # まだキャッシュにない場合はDBから取得
-#         if dateno_key not in max_no_cache:
-    
-#             # その日付の既存DateNoを取得
-#             sql5 = """
-#                 SELECT DateNo FROM DS_ChousaKihon
-#                 WHERE DateNo LIKE %s AND CenterCD=%s
-#                 ORDER BY DateNo DESC
-#             """
-#             like_DateNo = f"{date_str}-%"   # このままだと最新レコード入手できないから
-#             cursor.execute(sql5, (like_DateNo, SQL_CenterCD))
-#             DateNo_existing = cursor.fetchall()
-
-#             if DateNo_existing:
-#                 # 既存DateNoの最大連番を取得
-#                 max_no_cache[dateno_key] = max(int(DateNo_List['DateNo'].split("-")[1]) for DateNo_List in DateNo_existing)
-#             else:
-#                 # DateNo_New_no = "001
-#                 max_no_cache[dateno_key] = 0
-
-#         # 新しい連番を作る
-#         max_no_cache[dateno_key] += 1
-#         DateNo_New_no = f"{max_no_cache[dateno_key]:03d}"
-
-#         # DateNoを作る（スラッシュを消してハイフン形式に統一）
-#         date_part = date_str.replace("/", "")        
-#         DateNo_CSV = f"{date_part}-{DateNo_New_no}"
-
-
-#         # 新しいDateNoをリストに追加
-#         csv_rows.append(f"{DateNo_CSV}")
-
-#     return csv_rows
-
 def generate_new_dateno(cursor, csv_rows, csv_dt, CenterCD):
     """
     CSV行ごとに新しいDateNoを生成して csv_rows の各辞書に追加
@@ -253,13 +202,14 @@ def generate_new_dateno(cursor, csv_rows, csv_dt, CenterCD):
     
 
 
-def insert_database_records(cursor, csv_rows, DS_ChousaMeisai_results, DS_ChousaIjouchiSuiteiGenin_results, temp_result_paths, seq_dict):
+def insert_database_records(cursor, csv_rows, DS_ChousaKihon_results, DS_ChousaMeisai_results, DS_ChousaIjouchiSuiteiGenin_results, temp_result_paths, seq_dict):
     """
     データベースへのレコード挿入処理
     """
 
-    for rows in csv_rows:
+    for i, rows in enumerate(csv_rows):
         # 次の MeisaiNo
+        KansokujoCD = rows["観測所CD"]
         next_seq = seq_dict.get(KansokujoCD, 1)
         seq_dict[KansokujoCD] = next_seq + 1
 
@@ -268,6 +218,14 @@ def insert_database_records(cursor, csv_rows, DS_ChousaMeisai_results, DS_Chousa
         create_time = create_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(create_now.microsecond/1000):03d}"
         update_now = datetime.now()
         update_time = update_now.strftime("%Y-%m-%d %H:%M:%S.") + f"{int(update_now.microsecond/1000):03d}"
+
+        # 各i行目の対応データを取得(マスタからの履歴データ,添付ファイル情報の取得)（上書きしないように別変数にする）
+        DS_ChousaKihon_result = DS_ChousaKihon_results[i]
+        DS_ChousaMeisai_result = DS_ChousaMeisai_results[i]
+        DS_ChousaIjouchiSuiteiGenin_result = DS_ChousaIjouchiSuiteiGenin_results[i]
+        temp_result_path = temp_result_paths[i]  # 例: [DateNo, path1, path2, path3, path4, path5]
+        temp_result_path = list(temp_result_path) + [""] * (6 - len(temp_result_path))  # 空文字で補完
+        TempFilePath1, TempFilePath2, TempFilePath3, TempFilePath4, TempFilePath5 = temp_result_path[1:6] #1個目から6個目までを割り当てる
 
         # 挿入データまとめ
         Chousasho_insert_data = {
@@ -279,35 +237,36 @@ def insert_database_records(cursor, csv_rows, DS_ChousaMeisai_results, DS_Chousa
                             "Shubetsu09", "HasseiKeii" ,"HakkenHouhouCD", "KKShubetsuCD",
                             "KanshiTempFile01", "KanshiTempFile02", "KanshiTempFile03", "KanshiTempFile04", "KanshiTempFile05",
                             "SeqNo", "StartDate", "StartTime", "CreateTime", "UpdateTime", "FormatType", "KenCD"],
-                "values": [rows["DateNo"], Latest_row["CenterCD"], Latest_row.get("HasseiJoukyouCD"),
+                "values": [rows["DateNo"], rows["地方CD"], DS_ChousaKihon_result.get("HasseiJoukyouCD"),
                         rows["観測日時"].strftime("%Y-%m-%d"), rows["観測日時"].strftime("%H:%M"),
-                        Latest_row.get("IjouKessokuKbnCD"), Latest_row.get("JK_Kbn"),
-                        Latest_row.get("KanriCD"), Latest_row.get("ShozokuCD"),
-                        Latest_row.get("DenwaKaitou", 0),
-                        1, 0, 0, 0, 0, 0, 0, 0, 0, '', 4, Latest_row.get("KKShubetsuCD"),
+                        DS_ChousaKihon_result.get("IjouKessokuKbnCD"), DS_ChousaKihon_result.get("JK_Kbn"),
+                        DS_ChousaKihon_result.get("KanriCD"), DS_ChousaKihon_result.get("ShozokuCD"),
+                        DS_ChousaKihon_result.get("DenwaKaitou", 0),
+                        1, 0, 0, 0, 0, 0, 0, 0, 0, '', 4, DS_ChousaKihon_result.get("KKShubetsuCD"),
                         '', '', '', '', '', next_seq,
                         rows["観測日時"].strftime("%Y-%m-%d"), rows["観測日時"].strftime("%H:%M"),
-                        create_time, update_time, 1, Latest_row.get("KenCD")],
+                        create_time, update_time, 1, rows["都道府県CD"]
+                        ],
             },
             "DS_ChousaMeisai": {
                 "columns": ["DateNo", "CenterCD", "MeisaiNo", "SeqNo", "ShubetsuCD", "KansokujoCD", "JimushoCD", "KasenCD", "KenCD", "SuikeiCD",
                             "CreateTime", "UpdateTime", "DelFlg"],
-                "values": [rows["DateNo"], Latest_row.get("CenterCD"), str(next_seq), next_seq, ShubetsuCD, KansokujoCD, 
-                        JimushoCD, KasenCD, KenCD, SuikeiCD, create_time, update_time, 0],  
+                "values": [rows["DateNo"], rows["地方CD"], str(next_seq), next_seq, rows["種別CD"], rows["観測所CD"], 
+                        rows["事務所CD"], rows["河川CD"], rows["都道府県CD"], rows["水系CD"], create_time, update_time, 0],  
             },
             "DS_ChousaIjouchiSuiteiGenin": {
                 "columns": ["DateNo", "CenterCD", "CISG_GeninKashoKbn", "CISG_HasseiUM", "CISG_SuiteiGeninKbn", "CISG_SuiteiNaiyou", "CISG_SankouInfo"],
-                "values": [rows["DateNo"], Latest_row.get("CenterCD"),
-                        DS_ChousaIjouchiSuiteiGenin_results["CISG_GeninKashoKbn"],
-                        DS_ChousaIjouchiSuiteiGenin_results["CISG_HasseiUM"],
-                        DS_ChousaIjouchiSuiteiGenin_results["CISG_SuiteiGeninKbn"],
+                "values": [rows["DateNo"], rows["地方CD"],
+                        DS_ChousaIjouchiSuiteiGenin_result["CISG_GeninKashoKbn"],
+                        DS_ChousaIjouchiSuiteiGenin_result["CISG_HasseiUM"],
+                        DS_ChousaIjouchiSuiteiGenin_result["CISG_SuiteiGeninKbn"],
                         '', ''],
             },
             "DS_ChousaIjouchiHandan": {
                 "columns": ["DateNo", "CenterCD", "CIH_KansokuData", "CIH_Tool", "CIH_Database", "CIH_CCTV", "CIH_HP", "CIH_River", "CIH_Kansoku", "CIH_HandanInfo", "CreateDateTime", "UpdateDateTime", 
                             "CIH_TempFile_Kansoku", "CIH_TempFile_DataKanshi", "CIH_TempFile_CCTV", "CIH_TempFile_HP", "CIH_TempFile_Etc1", "CIH_TempFile_Etc2", "CIH_TempFile_Etc3", "CIH_TempFile_Etc4", 
                             "CIH_TempFile_Etc5", "CIH_TempFile_Etc6"],
-                "values": [rows["DateNo"], Latest_row.get("CenterCD"), '', '', '', '', '', '', '', '', create_time, update_time,
+                "values": [rows["DateNo"], rows["地方CD"], '', '', '', '', '', '', '', '', create_time, update_time,
                             TempFilePath1 if TempFilePath1 else '', '', '', '', 
                             TempFilePath2 if TempFilePath2 else '', TempFilePath3 if TempFilePath3 else '', 
                             TempFilePath4 if TempFilePath4 else '', TempFilePath5 if TempFilePath5 else '', 
@@ -315,13 +274,15 @@ def insert_database_records(cursor, csv_rows, DS_ChousaMeisai_results, DS_Chousa
             },
             "DS_ChousaKaizenTaiou": {
                 "columns": ["DateNo", "CenterCD", "CKT_Kinkyu", "CKT_Toumen", "CKT_Bappon", "CGF_Info", "CKTJ_KoukaInfo", "CKTJ_etc"], 
-                "values": [rows["DateNo"], Latest_row.get("CenterCD"), '', '', '', '', '', '']
+                "values": [rows["DateNo"], rows["地方CD"], '', '', '', '', '', '']
             },
             "DS_ChousashoShokanKikanKinyuuran": {
                 "columns": ["DateNo", "CenterCD", "SI_Naiyou", "SI_Taiou"], 
-                "values": [rows["DateNo"], Latest_row.get("CenterCD"), '', '']
+                "values": [rows["DateNo"], rows["地方CD"], '', '']
             }
         }
+
+        # ===== 挿入実行 =====
 
         # 一括挿入
         for Chousasho_table_name, Chousasho_data in Chousasho_insert_data.items():
@@ -369,7 +330,7 @@ def toggle_watch(request):
             watch_status.save()
 
             # CSVファイルのパス（複数行テスト用）
-            csv_file_path = os.path.join(settings.BASE_DIR, "csv", "雨量_注意_新潟デモ2.csv")
+            csv_file_path = os.path.join(settings.BASE_DIR, "csv", "雨量_注意_新潟デモ.csv")
 
             # ファイル名から種別、警戒レベル、期間を取得
             file_name = os.path.basename(csv_file_path).replace(".csv", "")  # '雨量_注意_新潟デモ'
@@ -503,12 +464,18 @@ def toggle_watch(request):
                     
                     # # 緯度経度を追加
                     if row_data:
-                        _, _, _, _, _, _, ido, keido, center_cd = row_data
+                        kansokujo_cd, shubetsu_cd, kasen_cd, ken_cd, jimusho_cd, suikei_cd, ido, keido, center_cd = row_data
+                        r["観測所CD"] = kansokujo_cd 
+                        r["種別CD"] = shubetsu_cd
+                        r["河川CD"] = kasen_cd
+                        r["都道府県CD"] = ken_cd
+                        r["事務所CD"] = jimusho_cd
+                        r["水系CD"] = suikei_cd
                         r["緯度"] = ido
                         r["経度"] = keido
                         r["地方CD"] = center_cd
                     else:
-                        r["緯度"] = r["経度"] = r["地方CD"] = None
+                        r["緯度"] = r["経度"] = r["地方CD"] = r["観測所CD"] = r["種別CD"] = r["河川CD"] = r["都道府県CD"] = r["事務所CD"] = r["水系CD"] = None
 
                     
                     # 近傍観測所フラグの処理
@@ -582,7 +549,7 @@ def toggle_watch(request):
                 # ---------------------------------------------------------------------------------------------
                 # fileupload.pyを実行                
                 try:
-                    fileupload_result = execute_fileupload_processing(csv_rows, csv_file_name)
+                    fileupload_result = execute_fileupload_processing(csv_rows, csv_file_name, TempFile_results)
                     print("fileupload.py が正常に実行されました")
                     
                 except subprocess.CalledProcessError as e:
@@ -591,7 +558,7 @@ def toggle_watch(request):
                 # ---------------------------------------------------------------------------------------------
                 # データベースにレコード挿入
                 next_seq = insert_database_records(
-                    cursor, csv_rows, DS_ChousaMeisai_results, DS_ChousaIjouchiSuiteiGenin_results,
+                    cursor, csv_rows,DS_ChousaKihon_results, DS_ChousaMeisai_results, DS_ChousaIjouchiSuiteiGenin_results,
                     temp_result_paths, seq_dict
                 )
                 

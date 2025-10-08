@@ -454,7 +454,7 @@ def generate_temp_file(csv_rows, TempFile_results):
 
         for filename in file_names:
             # 保存ベースディレクトリ
-            Temp_base_dir = os.path.join("Temp", "調査書", "判断者", DateNo)
+            Temp_base_dir = os.path.join("Temp", "調査書", "判断者", Date)
 
             # ファイルパスを生成してリストに追加
             Temp_path = os.path.join(Temp_base_dir, filename)
